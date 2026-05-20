@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Markdown Editor (Ver.5.2.0)</title>
+    <title>Markdown Editor (Ver.5.2.3)</title>
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -521,6 +521,33 @@
             background-color: #ffffff;
             transition: background-color 0.3s ease;
             contain: content;
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+        }
+
+        /* Mermaid Text & Font Protection (Prevent white-out and font size mismatch by themes) */
+        .mermaid-container,
+        div.marpit .mermaid-container {
+            font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif !important;
+        }
+
+        .mermaid-container text,
+        .mermaid-container tspan,
+        div.marpit .mermaid-container text,
+        div.marpit .mermaid-container tspan,
+        svg[data-marpit-svg] .mermaid-container text,
+        svg[data-marpit-svg] .mermaid-container tspan,
+        div.marpit svg[data-marpit-svg] .mermaid-container text,
+        div.marpit svg[data-marpit-svg] .mermaid-container tspan,
+        .marp-slide-wrapper section .mermaid-container text,
+        .marp-slide-wrapper section .mermaid-container tspan {
+            fill: #333333 !important;
+            font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif !important;
+            dominant-baseline: auto !important;
+            alignment-baseline: auto !important;
+            baseline-shift: normal !important;
         }
 
         /* --- Marp Slide Preview Layout --- */
@@ -553,7 +580,7 @@
             height: calc(var(--slide-h) * 1px * var(--preview-scale, 1));
         }
 
-        .marp-slide-wrapper > section {
+        .marp-slide-wrapper>section {
             display: block !important;
             position: absolute !important;
             top: 0;
@@ -562,7 +589,7 @@
             transform: scale(var(--preview-scale, 1)) !important;
         }
 
-        .marp-slide-wrapper > svg {
+        .marp-slide-wrapper>svg {
             width: 100% !important;
             height: 100% !important;
             display: block !important;
@@ -571,7 +598,7 @@
         .marp-page-number {
             text-align: center;
             font-size: 0.7rem;
-            color: rgba(255,255,255,0.4);
+            color: rgba(255, 255, 255, 0.4);
             margin-top: -0.8rem;
             letter-spacing: 0.1em;
         }
@@ -746,7 +773,7 @@
         }
 
         /* Ensure any direct block child doesn't overflow */
-        .markdown-body > * {
+        .markdown-body>* {
             max-width: 100%;
             box-sizing: border-box;
         }
@@ -799,7 +826,7 @@
             <div class="header-left">
                 <div class="logo">
                     <i data-lucide="pen-tool"></i>
-                    <h1>Markdown Editor <span style="font-size: 0.7em; color: var(--text-secondary);">(Ver.5.2.0)</span>
+                    <h1>Markdown Editor <span style="font-size: 0.7em; color: var(--text-secondary);">(Ver.5.2.3)</span>
                     </h1>
                 </div>
                 <div class="status-indicator" id="save-status">
@@ -830,6 +857,16 @@
                     <i data-lucide="file-plus"></i>
                     <span>新規作成</span>
                 </button>
+                <div class="encoding-selector-wrap" style="display: flex; align-items: center; gap: 0.4rem; background: rgba(0, 0, 0, 0.2); border: 1px solid var(--border-color); border-radius: 6px; padding: 0 0.5rem; height: 38px; box-sizing: border-box;">
+                    <label for="encoding-select" style="cursor: pointer; display: flex; align-items: center; color: var(--text-secondary);" title="読み込み時の文字コード">
+                        <i data-lucide="languages" style="width: 16px; height: 16px;"></i>
+                    </label>
+                    <select id="encoding-select" style="background: transparent; border: none; color: var(--text-primary); font-size: 0.875rem; font-family: var(--font-ui); cursor: pointer; outline: none; padding-right: 0.5rem; height: 100%;">
+                        <option value="UTF-8" style="background: var(--pane-bg); color: var(--text-primary);">UTF-8 (推奨)</option>
+                        <option value="Shift_JIS" style="background: var(--pane-bg); color: var(--text-primary);">Shift_JIS</option>
+                        <option value="EUC-JP" style="background: var(--pane-bg); color: var(--text-primary);">EUC-JP</option>
+                    </select>
+                </div>
                 <button class="btn btn-outline" id="btn-open">
                     <i data-lucide="folder-open"></i>
                     <span>開く</span>
@@ -873,7 +910,8 @@
                 <div class="pane-header">
                     <div style="display: flex; align-items: center; gap: 8px;">
                         <span>Preview</span>
-                        <span id="engine-indicator" style="font-size: 0.7em; padding: 2px 6px; border-radius: 4px; display: none; font-weight: 500;"></span>
+                        <span id="engine-indicator"
+                            style="font-size: 0.7em; padding: 2px 6px; border-radius: 4px; display: none; font-weight: 500;"></span>
                     </div>
                     <div class="pane-header-actions">
                         <button id="btn-popout-preview" class="btn-pane-icon" title="別タブで開く">
@@ -1064,7 +1102,8 @@
                     </tbody>
                 </table>
 
-                <h3 style="margin: 1.5rem 0.75rem 0.5rem; font-size: 1.1em; color: var(--text-primary);">🖼️ Marp スライド記法</h3>
+                <h3 style="margin: 1.5rem 0.75rem 0.5rem; font-size: 1.1em; color: var(--text-primary);">🖼️ Marp スライド記法
+                </h3>
                 <table class="cheat-sheet-table">
                     <thead>
                         <tr>
@@ -1124,9 +1163,11 @@
                     </tbody>
                 </table>
 
-                <div style="margin: 1rem 0.75rem; padding: 0.75rem 1rem; background: rgba(88,166,255,0.1); border-left: 3px solid #58a6ff; border-radius: 4px; font-size: 0.85em; color: var(--text-secondary);">
+                <div
+                    style="margin: 1rem 0.75rem; padding: 0.75rem 1rem; background: rgba(88,166,255,0.1); border-left: 3px solid #58a6ff; border-radius: 4px; font-size: 0.85em; color: var(--text-secondary);">
                     <strong style="color: var(--text-primary);">📝 Marpサンプル</strong><br>
-                    <pre style="margin-top: 0.5rem; background: rgba(0,0,0,0.3); padding: 0.75rem; border-radius: 4px; font-size: 0.8em; color: #a5d6ff;">---
+                    <pre
+                        style="margin-top: 0.5rem; background: rgba(0,0,0,0.3); padding: 0.75rem; border-radius: 4px; font-size: 0.8em; color: #a5d6ff;">---
 marp: true
 theme: gaia
 paginate: true
@@ -1179,7 +1220,7 @@ paginate: true
                     if (window.Marp) {
                         MarpClass = window.Marp;
                         console.log('Marp Core loaded successfully from local bundle');
-                        
+
                         // バッジの色も青（公式ローカル版）に更新できるようにする準備
                         const engineIndicator = document.getElementById('engine-indicator');
                         if (engineIndicator && previewMode === 'slide') {
@@ -1187,7 +1228,7 @@ paginate: true
                             engineIndicator.style.color = '#58a6ff';
                             engineIndicator.style.background = 'rgba(88, 166, 255, 0.1)';
                         }
-                        
+
                         resolve(MarpClass);
                     } else {
                         reject(new Error('Marp class not found in bundle'));
@@ -1508,7 +1549,7 @@ paginate: true
                     theme: 'base',
                     securityLevel: 'loose',
                     flowchart: {
-                        htmlLabels: true,
+                        htmlLabels: false,
                         useMaxWidth: true
                     },
                     themeVariables: {
@@ -1516,7 +1557,8 @@ paginate: true
                         primaryBorderColor: '#888888',
                         primaryTextColor: '#333333',
                         lineColor: '#666666',
-                        fontFamily: 'var(--font-ui)'
+                        fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif',
+                        fontSize: '14px'
                     }
                 });
             }
@@ -1679,7 +1721,7 @@ paginate: true
             document.getElementById('btn-toggle-preview').addEventListener('click', () => {
                 const previewPane = document.getElementById('preview-pane');
                 const btnIcon = document.querySelector('#btn-toggle-preview i');
-                
+
                 if (previewPane.style.display === 'none') {
                     previewPane.style.display = 'flex';
                     btnIcon.setAttribute('data-lucide', 'layout-panel-left');
@@ -1695,7 +1737,7 @@ paginate: true
             document.getElementById('btn-popout-preview').addEventListener('click', () => {
                 const title = (document.getElementById('doc-title-input').value || '').trim() || 'Markdown Preview';
                 const isSlideMode = previewContainer.classList.contains('marp-mode');
-                
+
                 const newWin = window.open('', '_blank');
                 if (!newWin) {
                     alert('ポップアップがブロックされました。ブラウザの設定を確認してください。');
@@ -1882,7 +1924,21 @@ paginate: true
                         // 内蔵エンジンのCSSは "section" に直接当たっているため、wrapperのsectionにスコープする
                         scopedCss = css.replace(/\bsection\b/g, '.marp-slide-wrapper section');
                     }
-                    marpStyleTag.textContent = scopedCss;
+                    marpStyleTag.textContent = scopedCss + `
+                        /* Force override Mermaid baseline styles under Marp SVG */
+                        svg[data-marpit-svg] .mermaid-container text,
+                        svg[data-marpit-svg] .mermaid-container tspan,
+                        div.marpit svg[data-marpit-svg] .mermaid-container text,
+                        div.marpit svg[data-marpit-svg] .mermaid-container tspan,
+                        .marp-slide-wrapper section .mermaid-container text,
+                        .marp-slide-wrapper section .mermaid-container tspan {
+                            fill: #333333 !important;
+                            font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif !important;
+                            dominant-baseline: auto !important;
+                            alignment-baseline: auto !important;
+                            baseline-shift: normal !important;
+                        }
+                    `;
 
                     // Build slide wrappers
                     let slidesHtml = '<div class="marpit" style="color-scheme: light;">';
@@ -1893,7 +1949,7 @@ paginate: true
                     slidesHtml += '</div>';
 
                     let cleanHtml = slidesHtml;
-                    
+
                     // DOMPurifyはSVGのforeignObjectや複雑な属性（Marpの仕様）を破壊するため、
                     // 公式Marpエンジンの場合はサニタイズをスキップする（ローカルエディタのため自身で記述したMarkdownのみを扱う前提）
                     if (source !== 'marp-core') {
@@ -1906,7 +1962,7 @@ paginate: true
                         });
                         cleanHtml = cleanHtml.replace(/viewbox=/g, 'viewBox=');
                     }
-                    
+
                     previewContainer.innerHTML = cleanHtml;
 
                     previewContainer.classList.add('marp-mode');
@@ -1936,12 +1992,23 @@ paginate: true
                             const code = block.textContent;
                             const id = 'mermaid-diagram-' + Math.random().toString(36).substr(2, 9);
                             const { svg } = await mermaid.render(id, code);
+                            // SVG文字列からtextLengthとlengthAdjustを正規表現で完全に除去（DOM操作では効かないケースがあるため文字列レベルで処理）
+                            const cleanSvg = svg.replace(/\s+textLength="[^"]*"/g, '').replace(/\s+lengthAdjust="[^"]*"/g, '');
                             const container = document.createElement('div');
                             container.className = 'mermaid-container';
                             container.style.display = 'flex';
                             container.style.justifyContent = 'center';
                             container.style.margin = '1.5rem 0';
-                            container.innerHTML = svg;
+                            container.innerHTML = cleanSvg;
+
+                            // Marpの dominant-baseline 強制を無効化するためのインラインスタイル注入
+                            container.querySelectorAll('text, tspan').forEach(el => {
+                                el.style.setProperty('dominant-baseline', 'auto', 'important');
+                                el.style.setProperty('alignment-baseline', 'auto', 'important');
+                                el.style.setProperty('baseline-shift', 'normal', 'important');
+                                el.style.setProperty('fill', '#333333', 'important');
+                            });
+
                             block.parentNode.replaceWith(container);
                         } catch (err) {
                             console.error('Mermaid render error:', err);
@@ -2019,6 +2086,8 @@ paginate: true
                 const file = e.target.files[0];
                 if (!file) return;
 
+                const encoding = document.getElementById('encoding-select').value || 'UTF-8';
+
                 const reader = new FileReader();
                 reader.onload = (event) => {
                     const content = event.target.result;
@@ -2026,9 +2095,9 @@ paginate: true
                     updatePreview(content);
                     // Instantly save to local storage as well
                     localStorage.setItem('lumina_autosave', content);
-                    updateStatus('saved', 'ファイルを開きました');
+                    updateStatus('saved', `ファイルを開きました (${encoding})`);
                 };
-                reader.readAsText(file);
+                reader.readAsText(file, encoding);
             };
 
             // Trigger the file browser dialog
@@ -2048,7 +2117,7 @@ paginate: true
         }
 
         // ── App Version ──
-        const APP_VERSION = '5.2.0';
+        const APP_VERSION = '5.2.3';
 
         // ── Helper: Get sanitized document title for use in filenames ──
         function getDocTitle() {
@@ -2072,12 +2141,34 @@ paginate: true
             }
         }
 
-        // Helper: Convert SVG to PNG Base64
+        // Helper: Convert SVG to PNG Base64 (Robust version with Blob and safety timeout)
         function convertSvgToPng(svgElement) {
-            return new Promise((resolve, reject) => {
+            // Ensure textLength and lengthAdjust are removed from internal texts to prevent dot-compression during canvas rendering
+            svgElement.querySelectorAll('text, tspan').forEach(el => {
+                el.removeAttribute('textLength');
+                el.removeAttribute('lengthAdjust');
+            });
+
+            return new Promise((resolve) => {
                 const rect = svgElement.getBoundingClientRect();
                 let width = rect.width || parseFloat(svgElement.getAttribute('width')) || 600;
                 let height = rect.height || parseFloat(svgElement.getAttribute('height')) || 400;
+
+                // Size sanitization
+                if (isNaN(width) || width <= 1) width = 600;
+                if (isNaN(height) || height <= 1) height = 400;
+
+                // Safety timeout (1.5 seconds) to prevent freezing on local CORS or image load errors
+                const timeoutId = setTimeout(() => {
+                    console.warn("SVG conversion timed out, returning fallback");
+                    cleanup();
+                    resolve({
+                        src: null,
+                        width: width,
+                        height: height,
+                        failed: true
+                    });
+                }, 1500);
 
                 svgElement.setAttribute('width', width);
                 svgElement.setAttribute('height', height);
@@ -2088,26 +2179,70 @@ paginate: true
                     svgString = svgString.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
                 }
 
-                const imgSrc = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgString)));
+                let imgSrc;
+                let isBlob = false;
+                try {
+                    // Use Blob and createObjectURL to support Japanese (multibyte) characters safely
+                    const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+                    imgSrc = URL.createObjectURL(blob);
+                    isBlob = true;
+                } catch (e) {
+                    // Fallback to Base64 data URI if Blob fails
+                    imgSrc = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgString)));
+                }
+
                 const img = new Image();
-                img.crossOrigin = "Anonymous";
+                // Do NOT set img.crossOrigin = "Anonymous" in local file:/// context to prevent CORS freeze
+
+                function cleanup() {
+                    clearTimeout(timeoutId);
+                    if (isBlob && imgSrc) {
+                        URL.revokeObjectURL(imgSrc);
+                    }
+                }
+
                 img.onload = function () {
-                    const canvas = document.createElement('canvas');
-                    const scale = 2; // high resolution
-                    canvas.width = width * scale;
-                    canvas.height = height * scale;
-                    const ctx = canvas.getContext('2d');
-                    ctx.scale(scale, scale);
-                    ctx.fillStyle = '#ffffff';
-                    ctx.fillRect(0, 0, width, height);
-                    ctx.drawImage(img, 0, 0, width, height);
+                    try {
+                        const canvas = document.createElement('canvas');
+                        const scale = 2; // high resolution
+                        canvas.width = width * scale;
+                        canvas.height = height * scale;
+                        const ctx = canvas.getContext('2d');
+                        ctx.scale(scale, scale);
+                        ctx.fillStyle = '#ffffff';
+                        ctx.fillRect(0, 0, width, height);
+                        ctx.drawImage(img, 0, 0, width, height);
+                        
+                        const pngData = canvas.toDataURL('image/png');
+                        cleanup();
+                        resolve({
+                            src: pngData,
+                            width: width,
+                            height: height
+                        });
+                    } catch (err) {
+                        console.error('Canvas rendering failed:', err);
+                        cleanup();
+                        resolve({
+                            src: null,
+                            width: width,
+                            height: height,
+                            failed: true
+                        });
+                    }
+                };
+
+                img.onerror = function (err) {
+                    console.error('SVG Image rendering failed:', err);
+                    cleanup();
                     resolve({
-                        src: canvas.toDataURL('image/png'),
+                        src: null,
                         width: width,
-                        height: height
+                        height: height,
+                        failed: true
                     });
                 };
-                img.onerror = reject;
+
                 img.src = imgSrc;
             });
         }
@@ -2149,15 +2284,19 @@ paginate: true
                     svg.parentNode.removeChild(svg);
                 });
 
-                const svgs = Array.from(exportContainer.querySelectorAll('svg'));
+                const svgs = Array.from(exportContainer.querySelectorAll('svg:not([data-marpit-svg])'));
                 for (const svg of svgs) {
                     try {
                         const pngData = await convertSvgToPng(svg);
-                        const img = document.createElement('img');
-                        img.src = pngData.src;
-                        img.style.width = pngData.width + 'px';
-                        img.style.height = pngData.height + 'px';
-                        svg.parentNode.replaceChild(img, svg);
+                        if (pngData && pngData.src) {
+                            const img = document.createElement('img');
+                            img.src = pngData.src;
+                            img.style.width = pngData.width + 'px';
+                            img.style.height = pngData.height + 'px';
+                            svg.parentNode.replaceChild(img, svg);
+                        } else {
+                            console.warn('SVG conversion failed or timed out, keeping original SVG in Word');
+                        }
                     } catch (err) {
                         console.error('SVG conversion failed', err);
                     }
@@ -2177,7 +2316,7 @@ paginate: true
 
                 const title = (document.getElementById('doc-title-input').value || '').trim() || 'Document';
                 const isSlideMode = previewContainer.classList.contains('marp-mode');
-                
+
                 // Inline css for Word Document styles
                 let content = `
         <!DOCTYPE html>
@@ -2201,20 +2340,39 @@ paginate: true
                 p, span, div { overflow-wrap: break-word; word-break: break-word; }
                 ul, ol { margin-bottom: 16px; padding-left: 24px; }
                 img, iframe, svg { max-width: 100%; height: auto; }
+                /* Mermaid Text & Font Protection */
+                .mermaid-container,
+                div.marpit .mermaid-container {
+                    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif !important;
+                }
+                .mermaid-container text,
+                .mermaid-container tspan,
+                div.marpit .mermaid-container text,
+                div.marpit .mermaid-container tspan,
+                svg[data-marpit-svg] .mermaid-container text,
+                svg[data-marpit-svg] .mermaid-container tspan,
+                .marp-slide-wrapper section .mermaid-container text,
+                .marp-slide-wrapper section .mermaid-container tspan {
+                    fill: #333333 !important;
+                    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif !important;
+                    dominant-baseline: auto !important;
+                    alignment-baseline: auto !important;
+                    baseline-shift: normal !important;
+                }
                 ${isSlideMode ? (() => {
-                    const marpResultW = renderWithMarp(editor.getValue());
-                    const css = marpResultW ? marpResultW.css : '';
-                    let scopedCss = '';
-                    if (marpResultW && marpResultW.source === 'marp-core') {
-                        scopedCss = css.replace(/div\.marpit\s*>\s*svg/g, 'div.marpit .marp-slide-wrapper > svg');
-                    } else {
-                        scopedCss = css.replace(/\bsection\b/g, '.marp-slide-wrapper section');
-                    }
-                    return scopedCss + `
+                        const marpResultW = renderWithMarp(editor.getValue());
+                        const css = marpResultW ? marpResultW.css : '';
+                        let scopedCss = '';
+                        if (marpResultW && marpResultW.source === 'marp-core') {
+                            scopedCss = css.replace(/div\.marpit\s*>\s*svg/g, 'div.marpit .marp-slide-wrapper > svg');
+                        } else {
+                            scopedCss = css.replace(/\bsection\b/g, '.marp-slide-wrapper section');
+                        }
+                        return scopedCss + `
                     .marp-slide-wrapper { page-break-after: always; }
                     .marp-page-number { display: none; }
                     .header-bar, .page-number { display: none !important; }`;
-                })() : ''}
+                    })() : ''}
             </style>
         </head>
         <body>
@@ -2282,6 +2440,25 @@ paginate: true
                         ${scopedCss}
                         .marp-page-number { display: none; }
                         .header-bar, .page-number { display: none !important; }
+                        /* Mermaid Text & Font Protection */
+                        .mermaid-container,
+                        div.marpit .mermaid-container {
+                            font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif !important;
+                        }
+                        .mermaid-container text,
+                        .mermaid-container tspan,
+                        div.marpit .mermaid-container text,
+                        div.marpit .mermaid-container tspan,
+                        svg[data-marpit-svg] .mermaid-container text,
+                        svg[data-marpit-svg] .mermaid-container tspan,
+                        .marp-slide-wrapper section .mermaid-container text,
+                        .marp-slide-wrapper section .mermaid-container tspan {
+                            fill: #333333 !important;
+                            font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif !important;
+                            dominant-baseline: auto !important;
+                            alignment-baseline: auto !important;
+                            baseline-shift: normal !important;
+                        }
                     `;
                     wrapper = document.createElement('div');
                     wrapper.className = 'marp-mode';
@@ -2308,6 +2485,21 @@ paginate: true
                         .pdf-export-wrapper table { width: 100% !important; table-layout: fixed !important; border-collapse: collapse; }
                         .pdf-export-wrapper th, .pdf-export-wrapper td { border: 1px solid #d0d7de !important; padding: 6px 12px; }
                         .pdf-export-wrapper img, .pdf-export-wrapper svg { max-width: 100% !important; height: auto !important; }
+                        /* Mermaid Text & Font Protection */
+                        .mermaid-container,
+                        .pdf-export-wrapper .mermaid-container {
+                            font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif !important;
+                        }
+                        .mermaid-container text,
+                        .mermaid-container tspan,
+                        .pdf-export-wrapper .mermaid-container text,
+                        .pdf-export-wrapper .mermaid-container tspan {
+                            fill: #333333 !important;
+                            font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif !important;
+                            dominant-baseline: auto !important;
+                            alignment-baseline: auto !important;
+                            baseline-shift: normal !important;
+                        }
                     `;
                     wrapper = document.createElement('div');
                     wrapper.className = 'markdown-body pdf-export-wrapper';
@@ -2322,15 +2514,19 @@ paginate: true
                 document.body.appendChild(offscreen);
 
                 // Convert remaining SVGs (like mermaid or user SVGs) to PNG
-                const svgs = Array.from(printContainer.querySelectorAll('svg'));
+                const svgs = Array.from(printContainer.querySelectorAll('svg:not([data-marpit-svg])'));
                 for (const svg of svgs) {
                     try {
                         const pngData = await convertSvgToPng(svg);
-                        const img = document.createElement('img');
-                        img.src = pngData.src;
-                        img.style.width = pngData.width + 'px';
-                        img.style.height = pngData.height + 'px';
-                        svg.parentNode.replaceChild(img, svg);
+                        if (pngData && pngData.src) {
+                            const img = document.createElement('img');
+                            img.src = pngData.src;
+                            img.style.width = pngData.width + 'px';
+                            img.style.height = pngData.height + 'px';
+                            svg.parentNode.replaceChild(img, svg);
+                        } else {
+                            console.warn('SVG conversion failed or timed out, keeping original SVG in PDF');
+                        }
                     } catch (err) {
                         console.error('SVG conversion failed', err);
                     }
@@ -2362,7 +2558,7 @@ paginate: true
         }
 
         // Export as .html
-        function handleExportHtml() {
+        async function handleExportHtml() {
             try {
                 updateStatus('saving', 'HTML出力生成中...');
 
@@ -2374,7 +2570,14 @@ paginate: true
                     // Slide mode: generate a full-featured slideshow HTML
                     const markdown = editor.getValue();
                     const marpResultH = renderWithMarp(markdown);
-                    const { css: marpCss, slides: marpSlides } = marpResultH;
+                    const { css: marpCss } = marpResultH;
+
+                    // プレビューコンテナ内にすでに完璧にレンダリング済みのスライド要素（Mermaid描画完了済み）を直接利用する
+                    const slideWrappers = Array.from(previewContainer.querySelectorAll('.marp-slide-wrapper'));
+                    if (slideWrappers.length === 0) {
+                        throw new Error("スライドのレンダリングデータが見つかりません。プレビューを表示した状態でエクスポートしてください。");
+                    }
+                    const marpSlides = slideWrappers.map(wrapper => wrapper.innerHTML);
                     const totalSlides = marpSlides.length;
 
                     // Build individual slide divs (hidden by default except first)
@@ -2532,6 +2735,25 @@ paginate: true
             #controls, #progress-bar, #zone-prev, #zone-next { display: none !important; }
             .slide { position: static; display: flex !important; page-break-after: always; }
         }
+        /* Mermaid Text & Font Protection */
+        .mermaid-container,
+        #slideshow .mermaid-container {
+            font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif !important;
+        }
+        .mermaid-container text,
+        .mermaid-container tspan,
+        #slideshow .mermaid-container text,
+        #slideshow .mermaid-container tspan,
+        svg[data-marpit-svg] .mermaid-container text,
+        svg[data-marpit-svg] .mermaid-container tspan,
+        .slide section .mermaid-container text,
+        .slide section .mermaid-container tspan {
+            fill: #333333 !important;
+            font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif !important;
+            dominant-baseline: auto !important;
+            alignment-baseline: auto !important;
+            baseline-shift: normal !important;
+        }
     </style>
 </head>
 <body>
@@ -2618,6 +2840,19 @@ ${slidesHtml}
         goTo(0);
         // Delay scale calc until section is rendered
         setTimeout(updateScale, 50);
+
+        // 表示ロード後、すべてのMermaid要素から再度ドット化属性を削除する（iOS Safari等の表示測定ズレ・バグに対する最終防壁）
+        function cleanupMermaidAttributes() {
+            document.querySelectorAll('.mermaid-container [textLength], .mermaid-container [lengthAdjust]').forEach(el => {
+                el.removeAttribute('textLength');
+                el.removeAttribute('lengthAdjust');
+            });
+        }
+        cleanupMermaidAttributes();
+        // 画面サイズ変更時などにも繰り返し実行
+        window.addEventListener('resize', () => {
+            setTimeout(cleanupMermaidAttributes, 100);
+        });
     <\/script>
 </body>
 </html>`;
@@ -2646,6 +2881,21 @@ ${slidesHtml}
         th, td { border: 1px solid #d0d7de; padding: 6px 13px; }
         th { background: #fff; font-weight: 600; }
         tr:nth-child(2n) { background: #f6f8fa; }
+        /* Mermaid Text & Font Protection */
+        .mermaid-container,
+        .markdown-body .mermaid-container {
+            font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif !important;
+        }
+        .mermaid-container text,
+        .mermaid-container tspan,
+        .markdown-body .mermaid-container text,
+        .markdown-body .mermaid-container tspan {
+            fill: #333333 !important;
+            font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif !important;
+            dominant-baseline: auto !important;
+            alignment-baseline: auto !important;
+            baseline-shift: normal !important;
+        }
     </style>
 </head>
 <body>
