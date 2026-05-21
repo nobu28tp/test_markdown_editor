@@ -550,6 +550,34 @@
             baseline-shift: normal !important;
         }
 
+        /* HTML-based Mermaid Labels Protection (foreignObject / nodeLabel) */
+        .mermaid-container foreignObject,
+        .mermaid-container foreignObject div,
+        .mermaid-container foreignObject span,
+        .mermaid-container .nodeLabel,
+        .mermaid-container .edgeLabel,
+        .mermaid-container .label,
+        div.marpit .mermaid-container foreignObject,
+        div.marpit .mermaid-container foreignObject div,
+        div.marpit .mermaid-container foreignObject span,
+        div.marpit .mermaid-container .nodeLabel,
+        svg[data-marpit-svg] .mermaid-container foreignObject,
+        svg[data-marpit-svg] .mermaid-container foreignObject div,
+        svg[data-marpit-svg] .mermaid-container foreignObject span,
+        svg[data-marpit-svg] .mermaid-container .nodeLabel,
+        div.marpit svg[data-marpit-svg] .mermaid-container foreignObject,
+        div.marpit svg[data-marpit-svg] .mermaid-container foreignObject div,
+        div.marpit svg[data-marpit-svg] .mermaid-container .nodeLabel,
+        .marp-slide-wrapper section .mermaid-container foreignObject,
+        .marp-slide-wrapper section .mermaid-container foreignObject div,
+        .marp-slide-wrapper section .mermaid-container .nodeLabel {
+            color: #333333 !important;
+            fill: #333333 !important;
+            background-color: transparent !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+        }
+
         /* --- Marp Slide Preview Layout --- */
         .preview-container.marp-mode {
             background-color: #1a1a2e !important;
@@ -1938,6 +1966,24 @@ paginate: true
                             alignment-baseline: auto !important;
                             baseline-shift: normal !important;
                         }
+
+                        /* Force override HTML-based Mermaid labels under Marp SVG */
+                        svg[data-marpit-svg] .mermaid-container foreignObject,
+                        svg[data-marpit-svg] .mermaid-container foreignObject div,
+                        svg[data-marpit-svg] .mermaid-container foreignObject span,
+                        svg[data-marpit-svg] .mermaid-container .nodeLabel,
+                        div.marpit svg[data-marpit-svg] .mermaid-container foreignObject,
+                        div.marpit svg[data-marpit-svg] .mermaid-container foreignObject div,
+                        div.marpit svg[data-marpit-svg] .mermaid-container .nodeLabel,
+                        .marp-slide-wrapper section .mermaid-container foreignObject,
+                        .marp-slide-wrapper section .mermaid-container foreignObject div,
+                        .marp-slide-wrapper section .mermaid-container .nodeLabel {
+                            color: #333333 !important;
+                            fill: #333333 !important;
+                            background-color: transparent !important;
+                            visibility: visible !important;
+                            opacity: 1 !important;
+                        }
                     `;
 
                     // Build slide wrappers
@@ -2009,6 +2055,14 @@ paginate: true
                                 el.style.setProperty('alignment-baseline', 'auto', 'important');
                                 el.style.setProperty('baseline-shift', 'normal', 'important');
                                 el.style.setProperty('fill', '#333333', 'important');
+                            });
+                            // HTMLベースのMermaidラベル（foreignObject内の要素）に対するインラインスタイルの強制注入
+                            container.querySelectorAll('foreignObject, foreignObject div, foreignObject span, .nodeLabel, .edgeLabel, .label').forEach(el => {
+                                el.style.setProperty('color', '#333333', 'important');
+                                el.style.setProperty('fill', '#333333', 'important');
+                                el.style.setProperty('background-color', 'transparent', 'important');
+                                el.style.setProperty('visibility', 'visible', 'important');
+                                el.style.setProperty('opacity', '1', 'important');
                             });
                         } catch (err) {
                             console.error('Mermaid render error:', err);
@@ -2402,61 +2456,137 @@ paginate: true
                 updateStatus('saving', 'PDF生成中...');
 
                 const isSlideMode = previewContainer.classList.contains('marp-mode');
-                const printContainer = document.createElement('div');
-                printContainer.style.colorScheme = 'light';
-                printContainer.innerHTML = previewContainer.innerHTML;
-
-                let style;
-                let wrapper;
 
                 if (isSlideMode) {
-                    // Slide mode: use Marp Core theme CSS for accurate reproduction
+                    // スライドモードの場合：各スライドを個別に1280x720の固定サイズでキャプチャしてPDFに追加
                     const markdown = editor.getValue();
                     const marpResultP = renderWithMarp(markdown);
                     const css = marpResultP ? marpResultP.css : '';
 
-                    style = document.createElement('style');
-                    let scopedCss = '';
-                    if (marpResultP && marpResultP.source === 'marp-core') {
-                        // プレビューと完全に一致するCSSスコープ処理を適用し、Marp SVG構造を破壊せず維持
-                        scopedCss = css.replace(/div\.marpit\s*>\s*svg\s*/g, 'div.marpit .marp-slide-wrapper > svg');
-                        scopedCss += '\ndiv.marpit { color-scheme: light; }';
-                    } else {
-                        scopedCss = css.replace(/\bsection\b/g, '.marp-slide-wrapper section');
+                    // プレビューコンテナ内のすべてのスライド wrapper を取得
+                    const slideWrappers = Array.from(previewContainer.querySelectorAll('.marp-slide-wrapper'));
+                    if (slideWrappers.length === 0) {
+                        throw new Error("スライドが見つかりません。プレビューを表示した状態で実行してください。");
                     }
-                    style.textContent = `
-                        .marp-slide-wrapper { page-break-after: always; width: 1280px; height: 720px; overflow: hidden; position: relative; }
-                        .marp-slide-wrapper > svg { width: 100% !important; height: 100% !important; display: block !important; }
-                        ${scopedCss}
-                        .marp-page-number { display: none; }
-                        .header-bar, .page-number { display: none !important; }
-                        /* Mermaid Text & Font Protection */
-                        .mermaid-container,
-                        div.marpit .mermaid-container {
-                            font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif !important;
+
+                    // オフスクリーンの一時親コンテナを作成
+                    const offscreen = document.createElement('div');
+                    offscreen.style.cssText = 'position: fixed; top: -9999px; left: -9999px; width: 1280px; height: 720px; overflow: hidden; z-index: -9999; pointer-events: none;';
+                    document.body.appendChild(offscreen);
+
+                    // jsPDF の初期化 (アスペクト比 16:9 [297, 167.06] mm)
+                    const { jsPDF } = window.jspdf || window;
+                    const pdf = new jsPDF({
+                        orientation: 'landscape',
+                        unit: 'mm',
+                        format: [297, 167.06]
+                    });
+
+                    // 各スライドを個別に処理してキャプチャ
+                    for (let i = 0; i < slideWrappers.length; i++) {
+                        updateStatus('saving', `PDF生成中 (${i + 1} / ${slideWrappers.length})...`);
+
+                        // スライド単体を格納する固定サイズコンテナ
+                        const tempContainer = document.createElement('div');
+                        tempContainer.className = 'marp-mode';
+                        tempContainer.style.cssText = 'width: 1280px; height: 720px; background-color: #ffffff; position: relative; overflow: hidden; display: block;';
+
+                        // Marpテーマスタイル
+                        const style = document.createElement('style');
+                        let scopedCss = '';
+                        if (marpResultP && marpResultP.source === 'marp-core') {
+                            scopedCss = css.replace(/div\.marpit\s*>\s*svg\s*/g, 'div.marpit .marp-slide-wrapper > svg');
+                            scopedCss += '\ndiv.marpit { color-scheme: light; }';
+                        } else {
+                            scopedCss = css.replace(/\bsection\b/g, '.marp-slide-wrapper section');
                         }
-                        .mermaid-container text,
-                        .mermaid-container tspan,
-                        div.marpit .mermaid-container text,
-                        div.marpit .mermaid-container tspan,
-                        svg[data-marpit-svg] .mermaid-container text,
-                        svg[data-marpit-svg] .mermaid-container tspan,
-                        .marp-slide-wrapper section .mermaid-container text,
-                        .marp-slide-wrapper section .mermaid-container tspan {
-                            fill: #333333 !important;
-                            font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif !important;
-                            dominant-baseline: auto !important;
-                            alignment-baseline: auto !important;
-                            baseline-shift: normal !important;
+
+                        style.textContent = `
+                            ${scopedCss}
+                            .marp-slide-wrapper { width: 1280px; height: 720px; overflow: hidden; position: relative; display: block !important; transform: none !important; }
+                            .marp-slide-wrapper > svg { width: 100% !important; height: 100% !important; display: block !important; }
+                            .marp-page-number { display: none; }
+                            .header-bar, .page-number { display: none !important; }
+                            
+                            /* HTML-based Mermaid Labels Protection in PDF */
+                            .mermaid-container foreignObject,
+                            .mermaid-container foreignObject div,
+                            .mermaid-container foreignObject span,
+                            .mermaid-container .nodeLabel,
+                            .mermaid-container .edgeLabel,
+                            .mermaid-container .label {
+                                color: #333333 !important;
+                                fill: #333333 !important;
+                                background-color: transparent !important;
+                                visibility: visible !important;
+                                opacity: 1 !important;
+                            }
+                            .mermaid-container text,
+                            .mermaid-container tspan {
+                                fill: #333333 !important;
+                                font-family: "Inter", sans-serif !important;
+                            }
+                        `;
+
+                        const contentDiv = document.createElement('div');
+                        contentDiv.innerHTML = slideWrappers[i].outerHTML;
+
+                        tempContainer.appendChild(style);
+                        tempContainer.appendChild(contentDiv);
+                        offscreen.appendChild(tempContainer);
+
+                        // スライド内のMermaid SVG等をCanvas描画用にPNG画像に変換
+                        const svgs = Array.from(contentDiv.querySelectorAll('svg:not([data-marpit-svg])'));
+                        for (const svg of svgs) {
+                            try {
+                                const pngData = await convertSvgToPng(svg);
+                                if (pngData && pngData.src) {
+                                    const img = document.createElement('img');
+                                    img.src = pngData.src;
+                                    img.style.width = pngData.width + 'px';
+                                    img.style.height = pngData.height + 'px';
+                                    svg.parentNode.replaceChild(img, svg);
+                                }
+                            } catch (err) {
+                                console.error('SVG conversion failed', err);
+                            }
                         }
-                    `;
-                    wrapper = document.createElement('div');
-                    wrapper.className = 'marp-mode';
-                    wrapper.appendChild(style);
-                    wrapper.appendChild(printContainer);
+
+                        // html2canvas を実行して画像化
+                        const canvas = await html2canvas(tempContainer, {
+                            scale: 2, // 高精細化 (Retina対応)
+                            useCORS: true,
+                            backgroundColor: '#ffffff',
+                            width: 1280,
+                            height: 720,
+                            windowWidth: 1280,
+                            windowHeight: 720
+                        });
+
+                        const imgData = canvas.toDataURL('image/jpeg', 0.98);
+
+                        // PDF ページ追加
+                        if (i > 0) {
+                            pdf.addPage([297, 167.06], 'landscape');
+                        }
+                        pdf.addImage(imgData, 'JPEG', 0, 0, 297, 167.06);
+
+                        // 一時スライドを破棄
+                        offscreen.removeChild(tempContainer);
+                    }
+
+                    // PDF を保存
+                    pdf.save(getDocTitle() + '.pdf');
+                    offscreen.remove();
+                    updateStatus('saved', 'PDF出力完了');
+
                 } else {
-                    // Document mode
-                    style = document.createElement('style');
+                    // ドキュメントモード：安定性の高い従来の html2pdf 一括変換
+                    const printContainer = document.createElement('div');
+                    printContainer.style.colorScheme = 'light';
+                    printContainer.innerHTML = previewContainer.innerHTML;
+
+                    const style = document.createElement('style');
                     style.textContent = `
                         .pdf-export-wrapper {
                             background-color: #ffffff !important; color: #333333 !important;
@@ -2474,82 +2604,84 @@ paginate: true
                         }
                         .pdf-export-wrapper table { width: 100% !important; table-layout: fixed !important; border-collapse: collapse; }
                         .pdf-export-wrapper th, .pdf-export-wrapper td { border: 1px solid #d0d7de !important; padding: 6px 12px; }
+                        .pdf-export-wrapper th { background: #fff; font-weight: 600; }
                         .pdf-export-wrapper img, .pdf-export-wrapper svg { max-width: 100% !important; height: auto !important; }
-                        /* Mermaid Text & Font Protection */
-                        .mermaid-container,
-                        .pdf-export-wrapper .mermaid-container {
-                            font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif !important;
+                        
+                        /* HTML-based Mermaid Labels Protection in PDF Document Mode */
+                        .mermaid-container foreignObject,
+                        .mermaid-container foreignObject div,
+                        .mermaid-container foreignObject span,
+                        .mermaid-container .nodeLabel,
+                        .mermaid-container .edgeLabel,
+                        .mermaid-container .label {
+                            color: #333333 !important;
+                            fill: #333333 !important;
+                            background-color: transparent !important;
+                            visibility: visible !important;
+                            opacity: 1 !important;
                         }
                         .mermaid-container text,
-                        .mermaid-container tspan,
-                        .pdf-export-wrapper .mermaid-container text,
-                        .pdf-export-wrapper .mermaid-container tspan {
+                        .mermaid-container tspan {
                             fill: #333333 !important;
-                            font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif !important;
-                            dominant-baseline: auto !important;
-                            alignment-baseline: auto !important;
-                            baseline-shift: normal !important;
+                            font-family: "Inter", sans-serif !important;
                         }
                     `;
-                    wrapper = document.createElement('div');
+                    const wrapper = document.createElement('div');
                     wrapper.className = 'markdown-body pdf-export-wrapper';
                     wrapper.appendChild(style);
                     wrapper.appendChild(printContainer);
-                }
 
-                // Temporarily place off-screen for SVG size calculation
-                const offscreen = document.createElement('div');
-                offscreen.style.cssText = 'position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; opacity: 0.01; z-index: -9999; pointer-events: none; overflow: auto;';
-                offscreen.appendChild(wrapper);
-                document.body.appendChild(offscreen);
+                    const offscreen = document.createElement('div');
+                    offscreen.style.cssText = 'position: fixed; top: 0; left: 0; width: 750px; opacity: 0.01; z-index: -9999; pointer-events: none; overflow: auto;';
+                    offscreen.appendChild(wrapper);
+                    document.body.appendChild(offscreen);
 
-                // Convert remaining SVGs (like mermaid or user SVGs) to PNG
-                const svgs = Array.from(printContainer.querySelectorAll('svg:not([data-marpit-svg])'));
-                for (const svg of svgs) {
-                    try {
-                        const pngData = await convertSvgToPng(svg);
-                        if (pngData && pngData.src) {
-                            const img = document.createElement('img');
-                            img.src = pngData.src;
-                            img.style.width = pngData.width + 'px';
-                            img.style.height = pngData.height + 'px';
-                            svg.parentNode.replaceChild(img, svg);
-                        } else {
-                            console.warn('SVG conversion failed or timed out, keeping original SVG in PDF');
+                    // Convert remaining SVGs to PNG
+                    const svgs = Array.from(printContainer.querySelectorAll('svg:not([data-marpit-svg])'));
+                    for (const svg of svgs) {
+                        try {
+                            const pngData = await convertSvgToPng(svg);
+                            if (pngData && pngData.src) {
+                                const img = document.createElement('img');
+                                img.src = pngData.src;
+                                img.style.width = pngData.width + 'px';
+                                img.style.height = pngData.height + 'px';
+                                svg.parentNode.replaceChild(img, svg);
+                            }
+                        } catch (err) {
+                            console.error('SVG conversion failed', err);
                         }
-                    } catch (err) {
-                        console.error('SVG conversion failed', err);
                     }
+
+                    const opt = {
+                        margin: 10,
+                        filename: getDocTitle() + '.pdf',
+                        image: { type: 'jpeg', quality: 0.98 },
+                        html2canvas: { 
+                            scale: 2, 
+                            useCORS: true, 
+                            backgroundColor: '#ffffff', 
+                            letterRendering: true,
+                            width: 710,
+                            windowWidth: 710
+                        },
+                        jsPDF: { 
+                            unit: 'mm', 
+                            format: 'a4', 
+                            orientation: 'portrait' 
+                        }
+                    };
+
+                    html2pdf().set(opt).from(wrapper).save().then(() => {
+                        offscreen.remove();
+                        updateStatus('saved', 'PDF出力完了');
+                    }).catch(err => {
+                        offscreen.remove();
+                        console.error('PDF generation failed:', err);
+                        updateStatus('normal', 'PDF出力失敗');
+                        alert('PDF出力中にエラーが発生しました。');
+                    });
                 }
-
-                const opt = {
-                    margin: isSlideMode ? 0 : 10,
-                    filename: getDocTitle() + '.pdf',
-                    image: { type: 'jpeg', quality: 0.98 },
-                    html2canvas: { 
-                        scale: 2, 
-                        useCORS: true, 
-                        backgroundColor: '#ffffff', 
-                        letterRendering: true,
-                        width: isSlideMode ? 1280 : 710,
-                        windowWidth: isSlideMode ? 1280 : 710
-                    },
-                    jsPDF: { 
-                        unit: 'mm', 
-                        format: isSlideMode ? [297, 167.06] : 'a4', 
-                        orientation: isSlideMode ? 'landscape' : 'portrait' 
-                    }
-                };
-
-                html2pdf().set(opt).from(wrapper).save().then(() => {
-                    offscreen.remove();
-                    updateStatus('saved', 'PDF出力完了');
-                }).catch(err => {
-                    offscreen.remove();
-                    console.error('PDF generation failed:', err);
-                    updateStatus('normal', 'PDF出力失敗');
-                    alert('PDF出力中にエラーが発生しました。');
-                });
 
             } catch (err) {
                 console.error('PDF export failed:', err);
@@ -2755,6 +2887,28 @@ paginate: true
             alignment-baseline: auto !important;
             baseline-shift: normal !important;
         }
+        /* HTML-based Mermaid Labels Protection */
+        .mermaid-container foreignObject,
+        .mermaid-container foreignObject div,
+        .mermaid-container foreignObject span,
+        .mermaid-container .nodeLabel,
+        .mermaid-container .edgeLabel,
+        .mermaid-container .label,
+        #slideshow .mermaid-container foreignObject,
+        #slideshow .mermaid-container foreignObject div,
+        #slideshow .mermaid-container .nodeLabel,
+        svg[data-marpit-svg] .mermaid-container foreignObject,
+        svg[data-marpit-svg] .mermaid-container foreignObject div,
+        svg[data-marpit-svg] .mermaid-container .nodeLabel,
+        .slide section .mermaid-container foreignObject,
+        .slide section .mermaid-container foreignObject div,
+        .slide section .mermaid-container .nodeLabel {
+            color: #333333 !important;
+            fill: #333333 !important;
+            background-color: transparent !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+        }
     </style>
 </head>
 <body>
@@ -2852,6 +3006,13 @@ ${slidesHtml}
                 el.style.setProperty('fill', '#333333', 'important');
                 el.style.setProperty('dominant-baseline', 'auto', 'important');
             });
+            document.querySelectorAll('.mermaid-container foreignObject, .mermaid-container foreignObject div, .mermaid-container foreignObject span, .mermaid-container .nodeLabel, .mermaid-container .edgeLabel, .mermaid-container .label').forEach(el => {
+                el.style.setProperty('color', '#333333', 'important');
+                el.style.setProperty('fill', '#333333', 'important');
+                el.style.setProperty('background-color', 'transparent', 'important');
+                el.style.setProperty('visibility', 'visible', 'important');
+                el.style.setProperty('opacity', '1', 'important');
+            });
         }
         cleanupMermaidAttributes();
         // 画面サイズ変更時などにも繰り返し実行
@@ -2901,6 +3062,22 @@ ${slidesHtml}
             alignment-baseline: auto !important;
             baseline-shift: normal !important;
         }
+        /* HTML-based Mermaid Labels Protection */
+        .mermaid-container foreignObject,
+        .mermaid-container foreignObject div,
+        .mermaid-container foreignObject span,
+        .mermaid-container .nodeLabel,
+        .mermaid-container .edgeLabel,
+        .mermaid-container .label,
+        .markdown-body .mermaid-container foreignObject,
+        .markdown-body .mermaid-container foreignObject div,
+        .markdown-body .mermaid-container .nodeLabel {
+            color: #333333 !important;
+            fill: #333333 !important;
+            background-color: transparent !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+        }
     </style>
 </head>
 <body>
@@ -2915,12 +3092,19 @@ ${slidesHtml}
                 el.style.setProperty('fill', '#333333', 'important');
                 el.style.setProperty('dominant-baseline', 'auto', 'important');
             });
+            document.querySelectorAll('.mermaid-container foreignObject, .mermaid-container foreignObject div, .mermaid-container foreignObject span, .mermaid-container .nodeLabel, .mermaid-container .edgeLabel, .mermaid-container .label').forEach(el => {
+                el.style.setProperty('color', '#333333', 'important');
+                el.style.setProperty('fill', '#333333', 'important');
+                el.style.setProperty('background-color', 'transparent', 'important');
+                el.style.setProperty('visibility', 'visible', 'important');
+                el.style.setProperty('opacity', '1', 'important');
+            });
         }
         cleanupMermaidAttributes();
         window.addEventListener('resize', () => {
             setTimeout(cleanupMermaidAttributes, 100);
         });
-    </script>
+    <\/script>
 </body>
 </html>`;
                 }
