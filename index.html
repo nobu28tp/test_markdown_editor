@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Markdown Editor (Ver.5.2.3)</title>
+    <title>Markdown Editor (Ver.5.2.4)</title>
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -854,7 +854,7 @@
             <div class="header-left">
                 <div class="logo">
                     <i data-lucide="pen-tool"></i>
-                    <h1>Markdown Editor <span style="font-size: 0.7em; color: var(--text-secondary);">(Ver.5.2.3)</span>
+                    <h1>Markdown Editor <span style="font-size: 0.7em; color: var(--text-secondary);">(Ver.5.2.4)</span>
                     </h1>
                 </div>
                 <div class="status-indicator" id="save-status">
@@ -916,6 +916,15 @@
                     style="background: #e36209; border-color: rgba(255, 255, 255, 0.1);">
                     <i data-lucide="globe"></i>
                     <span>HTML出力</span>
+                </button>
+                <div style="width: 1px; background-color: var(--border-color); margin: 0 0.5rem;"></div>
+                <button class="btn btn-outline" id="btn-open-exporter" title="Mermaid Exporter を別タブで開く">
+                    <i data-lucide="external-link"></i>
+                    <span>Mermaid Exporter</span>
+                </button>
+                <button class="btn btn-outline" id="btn-github-sync" style="border-color: rgba(88, 166, 255, 0.4);" title="GitHubリポジトリと連携する">
+                    <i data-lucide="github"></i>
+                    <span>GitHub連携</span>
                 </button>
             </div>
         </header>
@@ -1210,6 +1219,78 @@ paginate: true
 - 項目1
 - **太字**
 - *斜体*</pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- GitHub Sync Modal -->
+    <div class="modal-overlay" id="github-modal">
+        <div class="modal-content" style="max-width: 520px;">
+            <div class="modal-header">
+                <h2><i data-lucide="github"></i> GitHub リポジトリ連携</h2>
+                <button class="btn-close" id="btn-close-github">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem; display: flex; flex-direction: column; gap: 1.2rem;">
+                <div style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5;">
+                    GitHub のリポジトリと直接連携し、ファイルを読み書きできます。<br>
+                    トークンはブラウザ内（LocalStorage）にのみ安全に保存されます。
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 0.4rem;">
+                    <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-primary);">
+                        🔑 パーソナルアクセストークン (PAT)
+                    </label>
+                    <input type="password" id="gh-token" placeholder="ghp_..."
+                        style="padding: 0.6rem 0.8rem; background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); border-radius: 6px; color: #e6edf3; font-size: 0.9rem; width: 100%; transition: border-color 0.2s;"
+                        onfocus="this.style.borderColor='#58a6ff'" onblur="this.style.borderColor='var(--border-color)'">
+                </div>
+
+                <div style="display: flex; gap: 1rem;">
+                    <div style="flex: 2; display: flex; flex-direction: column; gap: 0.4rem;">
+                        <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-primary);">
+                            📂 リポジトリ (owner/repo)
+                        </label>
+                        <input type="text" id="gh-repo" placeholder="ユーザー名/リポジトリ名"
+                            style="padding: 0.6rem 0.8rem; background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); border-radius: 6px; color: #e6edf3; font-size: 0.9rem; width: 100%; transition: border-color 0.2s;"
+                            onfocus="this.style.borderColor='#58a6ff'" onblur="this.style.borderColor='var(--border-color)'">
+                    </div>
+                    <div style="flex: 1; display: flex; flex-direction: column; gap: 0.4rem;">
+                        <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-primary);">
+                            🌿 ブランチ
+                        </label>
+                        <input type="text" id="gh-branch" placeholder="main" value="main"
+                            style="padding: 0.6rem 0.8rem; background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); border-radius: 6px; color: #e6edf3; font-size: 0.9rem; width: 100%; transition: border-color 0.2s;"
+                            onfocus="this.style.borderColor='#58a6ff'" onblur="this.style.borderColor='var(--border-color)'">
+                    </div>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 0.4rem;">
+                    <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-primary);">
+                        📝 ファイルパス (リポジトリ内)
+                    </label>
+                    <input type="text" id="gh-path" placeholder="例: docs/slide.md"
+                        style="padding: 0.6rem 0.8rem; background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); border-radius: 6px; color: #e6edf3; font-size: 0.9rem; width: 100%; transition: border-color 0.2s;"
+                        onfocus="this.style.borderColor='#58a6ff'" onblur="this.style.borderColor='var(--border-color)'">
+                </div>
+
+                <div id="gh-modal-status" style="font-size: 0.85rem; color: #58a6ff; display: none; padding: 0.5rem 0.8rem; background: rgba(88, 166, 255, 0.08); border-radius: 6px; border: 1px solid rgba(88, 166, 255, 0.15);"></div>
+
+                <div style="display: flex; gap: 0.8rem; margin-top: 0.3rem; justify-content: flex-end; flex-wrap: wrap;">
+                    <button class="btn btn-outline" id="btn-save-gh-settings" style="margin-right: auto;">
+                        <i data-lucide="check"></i>
+                        <span>設定のみ保存</span>
+                    </button>
+                    <button class="btn btn-secondary" id="btn-gh-load" style="background: #1f6feb; border-color: rgba(255, 255, 255, 0.1);">
+                        <i data-lucide="download"></i>
+                        <span>読込</span>
+                    </button>
+                    <button class="btn btn-primary" id="btn-gh-save" style="background: #238636; border-color: rgba(255, 255, 255, 0.1);">
+                        <i data-lucide="upload"></i>
+                        <span>保存・上書き</span>
+                    </button>
                 </div>
             </div>
         </div>
@@ -1744,6 +1825,29 @@ paginate: true
             document.getElementById('btn-export-word').addEventListener('click', handleExportWord);
             document.getElementById('btn-export-pdf').addEventListener('click', handleExportPdf);
             document.getElementById('btn-export-html').addEventListener('click', handleExportHtml);
+
+            // Mermaid Exporter を別タブで開く
+            document.getElementById('btn-open-exporter').addEventListener('click', () => {
+                window.open('https://nobu28tp.github.io/mermaid_exporter/', '_blank');
+            });
+
+            // GitHub連携モーダルの開閉
+            const githubModal = document.getElementById('github-modal');
+            document.getElementById('btn-github-sync').addEventListener('click', () => {
+                loadGitHubSettings();
+                githubModal.classList.add('active');
+            });
+            document.getElementById('btn-close-github').addEventListener('click', () => {
+                githubModal.classList.remove('active');
+            });
+            githubModal.addEventListener('click', (e) => {
+                if (e.target === githubModal) githubModal.classList.remove('active');
+            });
+
+            // GitHub連携ボタン群
+            document.getElementById('btn-save-gh-settings').addEventListener('click', saveGitHubSettings);
+            document.getElementById('btn-gh-load').addEventListener('click', loadFromGitHub);
+            document.getElementById('btn-gh-save').addEventListener('click', saveToGitHub);
 
             // Pane toggles
             document.getElementById('btn-toggle-preview').addEventListener('click', () => {
@@ -3117,6 +3221,187 @@ ${slidesHtml}
                 console.error('HTML export failed:', err);
                 updateStatus('normal', '出力失敗');
                 alert('HTMLエクスポート機能の実行中にエラーが発生しました。');
+            }
+        }
+
+
+        // ===== GitHub連携機能 =====
+
+        // UTF-8対応のBase64エンコーダ（日本語文字化け防止）
+        function utf8ToBase64(str) {
+            return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (match, p1) => {
+                return String.fromCharCode(parseInt(p1, 16));
+            }));
+        }
+
+        // UTF-8対応のBase64デコーダ
+        function base64ToUtf8(str) {
+            return decodeURIComponent(Array.prototype.map.call(atob(str), (c) => {
+                return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+            }).join(''));
+        }
+
+        // GitHub設定をLocalStorageに保存
+        function saveGitHubSettings() {
+            const settings = {
+                token: document.getElementById('gh-token').value,
+                repo: document.getElementById('gh-repo').value,
+                branch: document.getElementById('gh-branch').value || 'main',
+                path: document.getElementById('gh-path').value
+            };
+            localStorage.setItem('lumina_github_settings', JSON.stringify(settings));
+            showGhStatus('✅ 設定を保存しました', '#3fb950');
+        }
+
+        // GitHub設定をLocalStorageから読み込み
+        function loadGitHubSettings() {
+            try {
+                const raw = localStorage.getItem('lumina_github_settings');
+                if (!raw) return;
+                const s = JSON.parse(raw);
+                if (s.token) document.getElementById('gh-token').value = s.token;
+                if (s.repo) document.getElementById('gh-repo').value = s.repo;
+                if (s.branch) document.getElementById('gh-branch').value = s.branch;
+                if (s.path) document.getElementById('gh-path').value = s.path;
+            } catch (e) {
+                console.warn('GitHub設定の読込に失敗:', e);
+            }
+        }
+
+        // モーダル内ステータス表示
+        function showGhStatus(msg, color) {
+            const el = document.getElementById('gh-modal-status');
+            el.textContent = msg;
+            el.style.color = color || '#58a6ff';
+            el.style.display = 'block';
+            setTimeout(() => { el.style.display = 'none'; }, 5000);
+        }
+
+        // GitHub連携の入力値バリデーション
+        function getGitHubInputs() {
+            const token = document.getElementById('gh-token').value.trim();
+            const repo = document.getElementById('gh-repo').value.trim();
+            const branch = document.getElementById('gh-branch').value.trim() || 'main';
+            const path = document.getElementById('gh-path').value.trim();
+            if (!token) { showGhStatus('⚠️ パーソナルアクセストークンを入力してください', '#d29922'); return null; }
+            if (!repo) { showGhStatus('⚠️ リポジトリ名 (owner/repo) を入力してください', '#d29922'); return null; }
+            if (!path) { showGhStatus('⚠️ ファイルパスを入力してください', '#d29922'); return null; }
+            return { token, repo, branch, path };
+        }
+
+        // GitHubからファイルを読み込む
+        async function loadFromGitHub() {
+            const inputs = getGitHubInputs();
+            if (!inputs) return;
+            const { token, repo, branch, path } = inputs;
+
+            showGhStatus('📥 GitHubから読み込み中...', '#58a6ff');
+            try {
+                const res = await fetch(
+                    `https://api.github.com/repos/${repo}/contents/${path}?ref=${branch}`,
+                    {
+                        headers: {
+                            'Authorization': `token ${token}`,
+                            'Accept': 'application/vnd.github.v3.raw'
+                        }
+                    }
+                );
+                if (!res.ok) {
+                    if (res.status === 404) {
+                        showGhStatus('❌ ファイルが見つかりませんでした (404)', '#f85149');
+                    } else if (res.status === 401) {
+                        showGhStatus('❌ 認証失敗。トークンを確認してください (401)', '#f85149');
+                    } else {
+                        showGhStatus(`❌ APIエラー: ${res.status} ${res.statusText}`, '#f85149');
+                    }
+                    return;
+                }
+                const text = await res.text();
+                editor.setValue(text);
+                updatePreview(text);
+                localStorage.setItem('lumina_autosave', text);
+                saveGitHubSettings();
+                showGhStatus('✅ GitHubから読み込みに成功しました', '#3fb950');
+                updateStatus('saved', 'GitHub読込完了');
+            } catch (err) {
+                console.error('GitHub load failed:', err);
+                showGhStatus('❌ 通信エラー: ' + err.message, '#f85149');
+            }
+        }
+
+        // GitHubへファイルを保存（新規 or 上書き）
+        async function saveToGitHub() {
+            const inputs = getGitHubInputs();
+            if (!inputs) return;
+            const { token, repo, branch, path } = inputs;
+
+            const content = editor.getValue();
+            if (!content.trim()) {
+                showGhStatus('⚠️ エディタが空です。保存するテキストを入力してください', '#d29922');
+                return;
+            }
+
+            showGhStatus('📤 GitHubへ保存中...', '#58a6ff');
+            try {
+                let sha = null;
+                try {
+                    const checkRes = await fetch(
+                        `https://api.github.com/repos/${repo}/contents/${path}?ref=${branch}`,
+                        {
+                            headers: {
+                                'Authorization': `token ${token}`,
+                                'Accept': 'application/vnd.github.v3+json'
+                            }
+                        }
+                    );
+                    if (checkRes.ok) {
+                        const data = await checkRes.json();
+                        sha = data.sha;
+                    }
+                } catch (e) {
+                    // ファイルが存在しない場合は sha = null のまま新規作成
+                }
+
+                const body = {
+                    message: (sha ? 'Update' : 'Create') + ` ${path} via Markdown Editor`,
+                    content: utf8ToBase64(content),
+                    branch: branch
+                };
+                if (sha) body.sha = sha;
+
+                const putRes = await fetch(
+                    `https://api.github.com/repos/${repo}/contents/${path}`,
+                    {
+                        method: 'PUT',
+                        headers: {
+                            'Authorization': `token ${token}`,
+                            'Accept': 'application/vnd.github.v3+json',
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(body)
+                    }
+                );
+
+                if (!putRes.ok) {
+                    const errData = await putRes.json().catch(() => ({}));
+                    if (putRes.status === 409) {
+                        showGhStatus('❌ 競合エラー: 他の変更と衝突しています。再度読み込んでからお試しください (409)', '#f85149');
+                    } else if (putRes.status === 422) {
+                        showGhStatus('❌ SHAの不一致エラー: 再度読み込んでからお試しください (422)', '#f85149');
+                    } else if (putRes.status === 401) {
+                        showGhStatus('❌ 認証失敗。トークンを確認してください (401)', '#f85149');
+                    } else {
+                        showGhStatus(`❌ 保存失敗: ${putRes.status} ${errData.message || putRes.statusText}`, '#f85149');
+                    }
+                    return;
+                }
+
+                saveGitHubSettings();
+                showGhStatus(`✅ GitHubへの${sha ? '上書き' : '新規'}保存に成功しました`, '#3fb950');
+                updateStatus('saved', 'GitHub保存完了');
+            } catch (err) {
+                console.error('GitHub save failed:', err);
+                showGhStatus('❌ 通信エラー: ' + err.message, '#f85149');
             }
         }
 
