@@ -2484,7 +2484,7 @@ paginate: true
         <html>
         <head>
             <meta charset="utf-8">
-            <title>\${title}</title>
+            <title>${title}</title>
             <style>
                 body { font-family: "Meiryo", "Yu Gothic", sans-serif; font-size: 14px; }
                 h1, h2, h3, h4 { color: #333333; margin-top: 24px; margin-bottom: 16px; font-weight: bold; }
@@ -2501,21 +2501,21 @@ paginate: true
                 p, span, div { overflow-wrap: break-word; word-break: break-word; }
                 ul, ol { margin-bottom: 16px; padding-left: 24px; }
                 img, iframe, svg { max-width: 100%; height: auto; }
-                \${isSlideMode ? (() => {
+                ${isSlideMode ? (() => {
                     const marpResult = renderWithMarp(editor.getValue());
                     const css = marpResult ? marpResult.css : '';
-                    return css.replace(/\\bsection\\b/g, 'section') + \`
+                    return css.replace(/\bsection\b/g, 'section') + `
                     .marp-slide-wrapper { page-break-after: always; }
                     .marp-page-number { display: none; }
-                    .header-bar, .page-number { display: none !important; }\`;
+                    .header-bar, .page-number { display: none !important; }`;
                 })() : ''}
             </style>
         </head>
         <body>
-            \${exportContainer.innerHTML}
+            ${exportContainer.innerHTML}
         </body>
         </html>
-        \`;
+        `;
                 document.body.removeChild(wrapper);
 
                 // Convert to docx blob using html-docx-js
