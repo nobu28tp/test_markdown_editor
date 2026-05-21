@@ -2700,17 +2700,19 @@ paginate: true
                     `;
                 }
 
+                // 印刷終了時（ダイアログが閉じられた後）に実行するクリーンアップ関数を登録
+                const cleanupPrint = () => {
+                    printStyle.remove();
+                    document.title = originalTitle;
+                    updateStatus('saved', 'PDF出力完了');
+                    window.removeEventListener('afterprint', cleanupPrint);
+                };
+                window.addEventListener('afterprint', cleanupPrint);
+
                 document.head.appendChild(printStyle);
 
                 // 印刷ダイアログの起動
                 window.print();
-
-                // 印刷用スタイルタグを削除
-                printStyle.remove();
-
-                // タイトルを元に戻す
-                document.title = originalTitle;
-                updateStatus('saved', '印刷画面起動完了');
 
             } catch (err) {
                 console.error('PDF export failed:', err);
