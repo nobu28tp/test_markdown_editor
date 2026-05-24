@@ -3597,12 +3597,56 @@ ${slidesHtml}
             showGhStatus('✅ 設定を保存しました', '#3fb950');
         }
 
+        // URLからGitHub Pagesのリポジトリ情報を自動解析
+        function detectGitHubPagesInfo() {
+            const hn = window.location.hostname;
+            const pn = window.location.pathname;
+
+            // GitHub Pages のドメイン構造 <username>.github.io
+            if (hn.endsWith('.github.io')) {
+                const username = hn.split('.')[0];
+                const pathParts = pn.split('/').filter(Boolean);
+                if (pathParts.length >= 1) {
+                    const repo = pathParts[0];
+                    return {
+                        owner: username,
+                        repo: `${username}/${repo}`,
+                        branch: 'main'
+                    };
+                }
+            }
+
+            // ローカル実行やその他環境で、nobu28tp/test_markdown_editor がパスに含まれる場合は同期を支援
+            if (pn.includes('test_markdown_editor')) {
+                return {
+                    owner: 'nobu28tp',
+                    repo: 'nobu28tp/test_markdown_editor',
+                    branch: 'main'
+                };
+            }
+            return null;
+        }
+
         // GitHub設定をLocalStorageから読み込み
         function loadGitHubSettings() {
             try {
                 const raw = localStorage.getItem('lumina_github_settings');
-                if (!raw) return;
-                const s = JSON.parse(raw);
+                let s = {};
+                if (raw) {
+                    s = JSON.parse(raw);
+                }
+
+                // URLからの自動検出マージ
+                const detected = detectGitHubPagesInfo();
+                if (detected) {
+                    if (!s.repo) s.repo = detected.repo;
+                    if (!s.branch) s.branch = detected.branch;
+                    if (!s.path) s.path = 'document/';
+                } else {
+                    if (!s.branch) s.branch = 'main';
+                    if (!s.path) s.path = 'document/';
+                }
+
                 if (s.token) document.getElementById('gh-token').value = s.token;
                 if (s.repo) document.getElementById('gh-repo').value = s.repo;
                 if (s.branch) document.getElementById('gh-branch').value = s.branch;
@@ -3622,12 +3666,12 @@ ${slidesHtml}
         }
 
         // GitHub連携の入力値バリデーション
-        function getGitHubInputs() {
+        function getGitHubInputs(requireToken = true) {
             const token = document.getElementById('gh-token').value.trim();
             const repo = document.getElementById('gh-repo').value.trim();
             const branch = document.getElementById('gh-branch').value.trim() || 'main';
             let path = document.getElementById('gh-path').value.trim();
-            if (!token) { showGhStatus('⚠️ パーソナルアクセストークンを入力してください', '#d29922'); return null; }
+            if (requireToken && !token) { showGhStatus('⚠️ 保存するにはパーソナルアクセストークンを入力してください', '#d29922'); return null; }
             if (!repo) { showGhStatus('⚠️ リポジトリ名 (owner/repo) を入力してください', '#d29922'); return null; }
             if (!path) { showGhStatus('⚠️ ファイルパスを入力してください', '#d29922'); return null; }
 
@@ -3684,7 +3728,7 @@ ${slidesHtml}
 
         // GitHubへファイルを保存（新規 or 上書き）
         async function saveToGitHub() {
-            const inputs = getGitHubInputs();
+            const inputs = getGitHubInputs(true); // 保存時はトークン必須
             if (!inputs) return;
             const { token, repo, branch, path } = inputs;
 
@@ -3763,10 +3807,19 @@ ${slidesHtml}
 
         // GitHubリポジトリブラウザの表示・非表示トグルとロード
         async function browseGitHubRepo() {
-            const token = document.getElementById('gh-token').value.trim();
-            const repo = document.getElementById('gh-repo').value.trim();
+            let token = document.getElementById('gh-token').value.trim();
+            let repo = document.getElementById('gh-repo').value.trim();
 
-            if (!token) { showGhStatus('⚠️ パーソナルアクセストークンを入力してください', '#d29922'); return; }
+            // なければ自動検出
+            if (!repo) {
+                const detected = detectGitHubPagesInfo();
+                if (detected) {
+                    repo = detected.repo;
+                    document.getElementById('gh-repo').value = repo;
+                    document.getElementById('gh-branch').value = detected.branch;
+                }
+            }
+
             if (!repo) { showGhStatus('⚠️ リポジトリ名 (owner/repo) を入力してください', '#d29922'); return; }
 
             const browserEl = document.getElementById('gh-file-browser');
@@ -3792,8 +3845,23 @@ ${slidesHtml}
         // 指定パスのGitHubリポジトリ内容を取得
         async function fetchGitHubDir(path) {
             const token = document.getElementById('gh-token').value.trim();
-            const repo = document.getElementById('gh-repo').value.trim();
-            const branch = document.getElementById('gh-branch').value.trim() || 'main';
+            let repo = document.getElementById('gh-repo').value.trim();
+            let branch = document.getElementById('gh-branch').value.trim() || 'main';
+
+            // なければ自動検出
+            if (!repo) {
+                const detected = detectGitHubPagesInfo();
+                if (detected) {
+                    repo = detected.repo;
+                    document.getElementById('gh-repo').value = repo;
+                    document.getElementById('gh-branch').value = detected.branch;
+                }
+            }
+            
+            if (!repo) {
+                showGhStatus('⚠️ リポジトリ名を入力してください', '#d29922');
+                return false;
+            }
             
             const fileListEl = document.getElementById('gh-file-list');
             const browserEl = document.getElementById('gh-file-browser');
@@ -3805,12 +3873,15 @@ ${slidesHtml}
 
             try {
                 const url = `https://api.github.com/repos/${repo}/contents/${path ? path : ''}?ref=${branch}&_=${Date.now()}`;
-                const res = await fetch(url, {
-                    headers: {
-                        'Authorization': `token ${token}`,
-                        'Accept': 'application/vnd.github.v3+json'
-                    }
-                });
+                
+                const headers = {
+                    'Accept': 'application/vnd.github.v3+json'
+                };
+                if (token) {
+                    headers['Authorization'] = `token ${token}`;
+                }
+
+                const res = await fetch(url, { headers });
 
                 if (!res.ok) {
                     if (res.status === 404) {
