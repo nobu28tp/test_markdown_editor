@@ -1955,6 +1955,13 @@ paginate: true
             document.getElementById('btn-gh-save').addEventListener('click', saveToGitHub);
             document.getElementById('btn-gh-browse').addEventListener('click', browseGitHubRepo);
 
+            // GitHubリポジトリ名の入力クレンジングイベント
+            const ghRepoInput = document.getElementById('gh-repo');
+            if (ghRepoInput) {
+                ghRepoInput.addEventListener('blur', handleRepoInputCleansing);
+                ghRepoInput.addEventListener('change', handleRepoInputCleansing);
+            }
+
             // ローカルフォルダ連携モーダルの開閉
             const localFolderModal = document.getElementById('local-folder-modal');
             document.getElementById('btn-local-sync').addEventListener('click', () => {
@@ -3627,6 +3634,68 @@ ${slidesHtml}
             return null;
         }
 
+        // リポジトリ名 (owner/repo) のクレンジング
+        function sanitizeGitHubRepo(input) {
+            let val = input.trim();
+            if (!val) return '';
+
+            // GitHubのURL全体が入力された場合の処理 (https://github.com/owner/repo/...)
+            if (val.includes('github.com/')) {
+                const urlParts = val.split('github.com/')[1].split('/');
+                if (urlParts.length >= 2) {
+                    return `${urlParts[0]}/${urlParts[1]}`;
+                }
+            }
+
+            // owner/repo/folder などのように3階層以上ある場合、最初の2階層だけを owner/repo として抽出
+            const parts = val.split('/').filter(Boolean);
+            if (parts.length >= 2) {
+                // もし末尾が .git で終わっていたら除去
+                const repoName = parts[1].replace(/\.git$/, '');
+                return `${parts[0]}/${repoName}`;
+            }
+
+            return val;
+        }
+
+        // リポジトリ名 (owner/repo) のクレンジングとUIアシスト
+        function handleRepoInputCleansing() {
+            const repoEl = document.getElementById('gh-repo');
+            const pathEl = document.getElementById('gh-path');
+            if (!repoEl || !pathEl) return;
+            
+            let repo = repoEl.value.trim();
+            if (!repo) return;
+
+            // クレンジング前の値にスラッシュが3つ以上ある、または末尾にパスが含まれているかチェック
+            // 例: nobu28tp/test_markdown_editor/document
+            const parts = repo.split('/').filter(Boolean);
+            if (parts.length > 2) {
+                const cleanedRepo = `${parts[0]}/${parts[1].replace(/\.git$/, '')}`;
+                
+                // 削られたパス部分を抽出 (例: 'document')
+                const extractedPath = parts.slice(2).join('/');
+                
+                repoEl.value = cleanedRepo;
+                
+                // ファイルパス入力欄が空、またはプレースホルダーに近い場合、抽出したパスをセット
+                const currentPath = pathEl.value.trim();
+                if (!currentPath || currentPath === 'document/') {
+                    // もしファイル名が含まれていなければ、フォルダパスとして末尾にスラッシュを付ける
+                    const newPath = extractedPath.endsWith('.md') ? extractedPath : `${extractedPath}/`;
+                    pathEl.value = newPath;
+                }
+                
+                showGhStatus(`ℹ️ リポジトリ名を自動クレンジングし、パスに「${extractedPath}」を設定しました`, '#58a6ff');
+            } else {
+                // 通常のクレンジング（URLからのコピペなど）
+                const cleanedRepo = sanitizeGitHubRepo(repo);
+                if (cleanedRepo !== repo) {
+                    repoEl.value = cleanedRepo;
+                }
+            }
+        }
+
         // GitHub設定をLocalStorageから読み込み
         function loadGitHubSettings() {
             try {
@@ -3651,6 +3720,9 @@ ${slidesHtml}
                 if (s.repo) document.getElementById('gh-repo').value = s.repo;
                 if (s.branch) document.getElementById('gh-branch').value = s.branch;
                 if (s.path) document.getElementById('gh-path').value = s.path;
+                
+                // 読み込み直後に自動クレンジングを実行して不整合を解消
+                handleRepoInputCleansing();
             } catch (e) {
                 console.warn('GitHub設定の読込に失敗:', e);
             }
@@ -3668,9 +3740,20 @@ ${slidesHtml}
         // GitHub連携の入力値バリデーション
         function getGitHubInputs(requireToken = true) {
             const token = document.getElementById('gh-token').value.trim();
-            const repo = document.getElementById('gh-repo').value.trim();
+            let repo = document.getElementById('gh-repo').value.trim();
             const branch = document.getElementById('gh-branch').value.trim() || 'main';
             let path = document.getElementById('gh-path').value.trim();
+
+            // リポジトリ名の自動クレンジング
+            if (repo) {
+                const cleanedRepo = sanitizeGitHubRepo(repo);
+                if (cleanedRepo !== repo) {
+                    repo = cleanedRepo;
+                    document.getElementById('gh-repo').value = repo; // 画面の入力欄に書き戻し
+                    showGhStatus('ℹ️ リポジトリ名を owner/repo 形式に自動修正しました', '#58a6ff');
+                }
+            }
+
             if (requireToken && !token) { showGhStatus('⚠️ 保存するにはパーソナルアクセストークンを入力してください', '#d29922'); return null; }
             if (!repo) { showGhStatus('⚠️ リポジトリ名 (owner/repo) を入力してください', '#d29922'); return null; }
             if (!path) { showGhStatus('⚠️ ファイルパスを入力してください', '#d29922'); return null; }
@@ -3688,21 +3771,35 @@ ${slidesHtml}
 
         // GitHubからファイルを読み込む
         async function loadFromGitHub() {
-            const inputs = getGitHubInputs();
+            const inputs = getGitHubInputs(false); // 読込時はトークン不要
             if (!inputs) return;
             const { token, repo, branch, path } = inputs;
 
             showGhStatus('📥 GitHubから読み込み中...', '#58a6ff');
             try {
-                const res = await fetch(
-                    `https://api.github.com/repos/${repo}/contents/${path}?ref=${branch}&_=${Date.now()}`,
-                    {
-                        headers: {
-                            'Authorization': `token ${token}`,
-                            'Accept': 'application/vnd.github.v3.raw'
-                        }
+                const url = `https://api.github.com/repos/${repo}/contents/${path}?ref=${branch}&_=${Date.now()}`;
+                const headers = {
+                    'Accept': 'application/vnd.github.v3.raw'
+                };
+                if (token) {
+                    headers['Authorization'] = `token ${token}`;
+                }
+
+                let res = await fetch(url, { headers });
+
+                // トークン無効による隠蔽404または401エラーの場合、トークンなし（パブリック匿名）で自動フォールバック再試行
+                if (!res.ok && token && (res.status === 404 || res.status === 401)) {
+                    console.warn("GitHub API load failed with token, retrying without token...");
+                    const publicHeaders = {
+                        'Accept': 'application/vnd.github.v3.raw'
+                    };
+                    const retryRes = await fetch(url, { headers: publicHeaders });
+                    if (retryRes.ok) {
+                        res = retryRes;
+                        showGhStatus('ℹ️ トークンが無効なため、トークンなし（公開情報）として読み込みました', '#58a6ff');
                     }
-                );
+                }
+
                 if (!res.ok) {
                     if (res.status === 404) {
                         showGhStatus('❌ ファイルが見つかりませんでした (404)', '#f85149');
@@ -3820,6 +3917,12 @@ ${slidesHtml}
                 }
             }
 
+            // リポジトリ名の自動クレンジング
+            if (repo) {
+                repo = sanitizeGitHubRepo(repo);
+                document.getElementById('gh-repo').value = repo;
+            }
+
             if (!repo) { showGhStatus('⚠️ リポジトリ名 (owner/repo) を入力してください', '#d29922'); return; }
 
             const browserEl = document.getElementById('gh-file-browser');
@@ -3858,6 +3961,12 @@ ${slidesHtml}
                 }
             }
             
+            // リポジトリ名の自動クレンジング
+            if (repo) {
+                repo = sanitizeGitHubRepo(repo);
+                document.getElementById('gh-repo').value = repo;
+            }
+            
             if (!repo) {
                 showGhStatus('⚠️ リポジトリ名を入力してください', '#d29922');
                 return false;
@@ -3881,7 +3990,20 @@ ${slidesHtml}
                     headers['Authorization'] = `token ${token}`;
                 }
 
-                const res = await fetch(url, { headers });
+                let res = await fetch(url, { headers });
+
+                // トークン無効による隠蔽404または401エラーの場合、トークンなし（パブリック匿名）で自動フォールバック再試行
+                if (!res.ok && token && (res.status === 404 || res.status === 401)) {
+                    console.warn("GitHub API fetch dir failed with token, retrying without token...");
+                    const publicHeaders = {
+                        'Accept': 'application/vnd.github.v3+json'
+                    };
+                    const retryRes = await fetch(url, { headers: publicHeaders });
+                    if (retryRes.ok) {
+                        res = retryRes;
+                        showGhStatus('ℹ️ トークンが無効なため、トークンなし（公開情報）として参照しました', '#58a6ff');
+                    }
+                }
 
                 if (!res.ok) {
                     if (res.status === 404) {
