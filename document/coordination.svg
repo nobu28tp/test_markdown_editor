@@ -1,0 +1,224 @@
+<svg viewBox="0 0 1150 720" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+    <style>
+        text {
+            font-family: 'Noto Sans JP', 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif;
+        }
+        .text-default { fill: #333333; }
+        .text-white { fill: #ffffff; font-weight: 500; }
+        .text-sm { font-size: 13px; }
+        .text-xs { font-size: 11px; fill: #666666; }
+        .font-bold { font-weight: 700; }
+
+        /* 基本的なボックス要素 */
+        .box {
+            fill: #ffffff;
+            stroke: #9ca3af;
+            stroke-width: 1.5;
+        }
+        /* 青色のハイライトボックス */
+        .box-blue {
+            fill: #1d4ed8;
+            stroke: #1e3a8a;
+            stroke-width: 1;
+        }
+        /* 外枠の点線 */
+        .dashed-border {
+            fill: none;
+            stroke: #9ca3af;
+            stroke-width: 1.5;
+            stroke-dasharray: 4 4;
+        }
+        /* 内部グループの枠線 */
+        .group-border {
+            fill: none;
+            stroke: #cbd5e1;
+            stroke-width: 1.5;
+        }
+        /* 矢印の青色 */
+        .arrow-blue {
+            fill: #1d4ed8;
+        }
+    </style>
+
+    <!-- 背景（白）Marpで透明にならないように追加 -->
+    <rect width="100%" height="100%" fill="#ffffff" />
+
+    <!-- ==========================================
+         1. 住民 (左端)
+    =========================================== -->
+    <g transform="translate(40, 310)">
+        <!-- 人のアイコン -->
+        <circle cx="20" cy="-15" r="8" fill="none" stroke="#333" stroke-width="2"/>
+        <path d="M 5 15 Q 20 -5 35 15" fill="none" stroke="#333" stroke-width="2" stroke-linecap="round"/>
+        <text x="20" y="35" class="text-default font-bold" text-anchor="middle" font-size="15">住民</text>
+    </g>
+
+    <!-- ==========================================
+         2. 各サービス (左ブロック)
+    =========================================== -->
+    <!-- 枠線 -->
+    <rect x="90" y="40" width="110" height="640" class="dashed-border" rx="10"/>
+    <text x="145" y="70" class="text-default font-bold" text-anchor="middle" font-size="15">各サービス</text>
+    <text x="145" y="90" class="text-xs" text-anchor="middle">（随時拡張）</text>
+
+    <!-- サービス一覧ボタン -->
+    <g transform="translate(100, 110)">
+        <!-- 行政手続 -->
+        <rect x="0" y="0" width="90" height="34" class="box" rx="6"/><text x="45" y="22" class="text-default text-sm" text-anchor="middle">行政手続</text>
+        <!-- 交通 -->
+        <rect x="0" y="50" width="90" height="34" class="box" rx="6"/><text x="45" y="72" class="text-default text-sm" text-anchor="middle">交通</text>
+        <!-- 観光 -->
+        <rect x="0" y="100" width="90" height="34" class="box" rx="6"/><text x="45" y="122" class="text-default text-sm" text-anchor="middle">観光</text>
+        <!-- 地域通貨ポイント (2行) -->
+        <rect x="0" y="150" width="90" height="44" class="box" rx="6"/>
+        <text x="45" y="168" class="text-default text-sm" text-anchor="middle">地域通貨</text>
+        <text x="45" y="186" class="text-default text-sm" text-anchor="middle">ポイント</text>
+        <!-- 健康 -->
+        <rect x="0" y="210" width="90" height="34" class="box" rx="6"/><text x="45" y="232" class="text-default text-sm" text-anchor="middle">健康</text>
+        <!-- 教育 -->
+        <rect x="0" y="260" width="90" height="34" class="box" rx="6"/><text x="45" y="282" class="text-default text-sm" text-anchor="middle">教育</text>
+        <!-- 環境 -->
+        <rect x="0" y="310" width="90" height="34" class="box" rx="6"/><text x="45" y="332" class="text-default text-sm" text-anchor="middle">環境</text>
+        <!-- 防災 -->
+        <rect x="0" y="360" width="90" height="34" class="box" rx="6"/><text x="45" y="382" class="text-default text-sm" text-anchor="middle">防災</text>
+        <!-- ……など -->
+        <text x="45" y="435" class="text-default text-sm" text-anchor="middle">……など</text>
+    </g>
+
+
+    <!-- ==========================================
+         3. エリアデータ連携基盤 (中央ブロック)
+    =========================================== -->
+    <!-- 外枠 -->
+    <rect x="300" y="40" width="480" height="580" class="box" stroke="#6b7280" rx="16"/>
+    <text x="540" y="75" class="text-default font-bold" text-anchor="middle" font-size="18">エリアデータ連携基盤</text>
+
+    <!-- 3-1. サービスマネジメント -->
+    <rect x="320" y="100" width="440" height="150" class="group-border" rx="10"/>
+    <text x="540" y="125" class="text-default font-bold" text-anchor="middle" font-size="14">サービスマネジメント</text>
+    
+    <!-- 上段 -->
+    <rect x="335" y="140" width="125" height="36" class="box-blue" rx="6"/>
+    <text x="397.5" y="163" class="text-white text-sm" text-anchor="middle">APIゲートウェイ</text>
+    
+    <rect x="470" y="140" width="100" height="36" class="box" rx="6"/>
+    <text x="520" y="163" class="text-default text-sm" text-anchor="middle">ユーザ管理</text>
+    
+    <rect x="580" y="140" width="100" height="36" class="box" rx="6"/>
+    <text x="630" y="163" class="text-default text-sm" text-anchor="middle">認証・許可</text>
+
+    <!-- 下段 -->
+    <rect x="335" y="195" width="115" height="36" class="box" rx="6"/>
+    <text x="392.5" y="218" class="text-default text-sm" text-anchor="middle">サービス管理</text>
+
+    <rect x="460" y="195" width="140" height="42" class="box" rx="6"/>
+    <text x="530" y="212" class="text-default text-sm" text-anchor="middle">サービス利用</text>
+    <text x="530" y="229" class="text-default text-sm" text-anchor="middle">履歴管理</text>
+
+    <rect x="610" y="195" width="135" height="36" class="box" rx="6"/>
+    <text x="677.5" y="218" class="text-default text-sm" text-anchor="middle">開発者ポータル</text>
+
+    <!-- 3-2. データマネジメント -->
+    <rect x="320" y="270" width="440" height="100" class="group-border" rx="10"/>
+    <text x="540" y="295" class="text-default font-bold" text-anchor="middle" font-size="14">データマネジメント</text>
+    
+    <rect x="335" y="315" width="205" height="40" class="box-blue" rx="6"/>
+    <text x="437.5" y="340" class="text-white text-sm" text-anchor="middle">パーソナルブローカー</text>
+    
+    <rect x="550" y="315" width="195" height="40" class="box-blue" rx="6"/>
+    <text x="647.5" y="340" class="text-white text-sm" text-anchor="middle">非パーソナルブローカー</text>
+
+    <!-- 3-3. アセットマネジメント -->
+    <rect x="320" y="390" width="440" height="90" class="group-border" rx="10"/>
+    <text x="540" y="415" class="text-default font-bold" text-anchor="middle" font-size="14">アセットマネジメント</text>
+
+    <rect x="350" y="430" width="180" height="36" class="box" rx="6"/>
+    <text x="440" y="453" class="text-default text-sm" text-anchor="middle">デバイス管理</text>
+    
+    <rect x="550" y="430" width="180" height="36" class="box" rx="6"/>
+    <text x="640" y="453" class="text-default text-sm" text-anchor="middle">システム管理</text>
+
+    <!-- 3-4. 外部データ連携 -->
+    <rect x="320" y="500" width="440" height="90" class="group-border" rx="10"/>
+    <text x="540" y="525" class="text-default font-bold" text-anchor="middle" font-size="14">外部データ連携</text>
+
+    <rect x="360" y="540" width="160" height="36" class="box" rx="6"/>
+    <text x="440" y="563" class="text-default text-sm" text-anchor="middle">データ処理</text>
+    
+    <rect x="560" y="540" width="160" height="36" class="box" rx="6"/>
+    <text x="640" y="563" class="text-default text-sm" text-anchor="middle">データ転送</text>
+
+
+    <!-- ==========================================
+         4. 外部トラストサービス (下ブロック)
+    =========================================== -->
+    <rect x="340" y="650" width="400" height="46" class="box" rx="23"/>
+    <text x="540" y="678" class="text-default font-bold" text-anchor="middle" font-size="15">外部トラストサービス</text>
+
+
+    <!-- ==========================================
+         5. データアセット (右ブロック)
+    =========================================== -->
+    <rect x="850" y="40" width="260" height="640" class="dashed-border" rx="10"/>
+    <text x="980" y="70" class="text-default font-bold" text-anchor="middle" font-size="15">データアセット</text>
+    <text x="980" y="90" class="text-xs" text-anchor="middle">（随時拡張）</text>
+
+    <!-- 5-1. データホルダー -->
+    <rect x="865" y="110" width="230" height="150" class="group-border" rx="10"/>
+    <text x="980" y="135" class="text-default font-bold" text-anchor="middle" font-size="14">データホルダー</text>
+    
+    <rect x="880" y="150" width="90" height="36" class="box" rx="6"/>
+    <text x="925" y="173" class="text-default text-sm" text-anchor="middle">地理データ</text>
+    
+    <rect x="985" y="150" width="90" height="42" class="box" rx="6"/>
+    <text x="1030" y="167" class="text-default text-sm" text-anchor="middle">オープン</text>
+    <text x="1030" y="184" class="text-default text-sm" text-anchor="middle">データ</text>
+    
+    <rect x="880" y="205" width="90" height="36" class="box" rx="6"/>
+    <text x="925" y="228" class="text-default text-sm" text-anchor="middle">公共データ</text>
+    
+    <text x="1030" y="228" class="text-default text-sm" text-anchor="middle">……など</text>
+
+    <!-- 5-2. 他のネットワーク基盤のデータ -->
+    <rect x="865" y="280" width="230" height="150" class="group-border" rx="10"/>
+    <text x="980" y="305" class="text-default font-bold" text-anchor="middle" font-size="14">他のネットワーク基盤のデータ</text>
+    
+    <rect x="880" y="325" width="95" height="42" class="box" rx="6"/>
+    <text x="927.5" y="342" class="text-default text-sm" text-anchor="middle">公共サービス</text>
+    <text x="927.5" y="359" class="text-default text-sm" text-anchor="middle">メッシュ</text>
+    
+    <rect x="995" y="325" width="80" height="36" class="box" rx="6"/>
+    <text x="1035" y="348" class="text-default text-sm" text-anchor="middle">PMH</text>
+
+    <rect x="880" y="380" width="95" height="36" class="box" rx="6"/>
+    <text x="927.5" y="403" class="text-default text-sm" text-anchor="middle">防災データ</text>
+
+    <text x="1035" y="403" class="text-default text-sm" text-anchor="middle">……など</text>
+
+    <!-- 5-3. センサー・ドローンなどのデータ -->
+    <rect x="865" y="450" width="230" height="120" class="group-border" rx="10"/>
+    <text x="980" y="480" class="text-default font-bold" text-anchor="middle" font-size="14">センサー・ドローン</text>
+    <text x="980" y="500" class="text-default font-bold" text-anchor="middle" font-size="14">などのデータ</text>
+    
+    <text x="980" y="540" class="text-default text-sm" text-anchor="middle">……など</text>
+
+
+    <!-- ==========================================
+         6. 矢印と連携テキスト
+    =========================================== -->
+    
+    <!-- 左から中央 (データ連携・利活用) -->
+    <!-- 矢印シェイプ -->
+    <path d="M 215 330 L 230 318 L 230 326 L 270 326 L 270 318 L 285 330 L 270 342 L 270 334 L 230 334 L 230 342 Z" class="arrow-blue"/>
+    <text x="250" y="295" class="text-default font-bold text-sm" text-anchor="middle">データ連携・</text>
+    <text x="250" y="312" class="text-default font-bold text-sm" text-anchor="middle">利活用</text>
+
+    <!-- 右から中央 (データ提供) -->
+    <path d="M 795 330 L 810 318 L 810 326 L 835 326 L 835 318 L 850 330 L 835 342 L 835 334 L 810 334 L 810 342 Z" class="arrow-blue"/>
+    <text x="822.5" y="305" class="text-default font-bold text-sm" text-anchor="middle">データ提供</text>
+
+    <!-- 下から中央 (連携) -->
+    <path d="M 525 605 L 515 617 L 521 617 L 521 635 L 515 635 L 525 647 L 535 635 L 529 635 L 529 617 L 535 617 Z" class="arrow-blue"/>
+    <text x="545" y="632" class="text-default font-bold text-sm" text-anchor="start">連携</text>
+
+</svg>
