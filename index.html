@@ -3626,10 +3626,19 @@ ${slidesHtml}
             const token = document.getElementById('gh-token').value.trim();
             const repo = document.getElementById('gh-repo').value.trim();
             const branch = document.getElementById('gh-branch').value.trim() || 'main';
-            const path = document.getElementById('gh-path').value.trim();
+            let path = document.getElementById('gh-path').value.trim();
             if (!token) { showGhStatus('⚠️ パーソナルアクセストークンを入力してください', '#d29922'); return null; }
             if (!repo) { showGhStatus('⚠️ リポジトリ名 (owner/repo) を入力してください', '#d29922'); return null; }
             if (!path) { showGhStatus('⚠️ ファイルパスを入力してください', '#d29922'); return null; }
+
+            // 入力されたファイルパスにスラッシュが含まれず、.mdで終わる単純なファイル名の場合、
+            // 自動的に 'document/' プレフィックスを付与して補完する
+            if (!path.includes('/') && path.endsWith('.md')) {
+                path = 'document/' + path;
+                document.getElementById('gh-path').value = path;
+                showGhStatus('ℹ️ パスを自動的に document/ 配下に補完しました', '#58a6ff');
+            }
+
             return { token, repo, branch, path };
         }
 
@@ -3768,9 +3777,16 @@ ${slidesHtml}
                 return;
             }
 
-            // ルートフォルダから取得
-            currentGhBrowsePath = '';
-            await fetchGitHubDir(currentGhBrowsePath);
+            // デフォルトの開始位置を 'document' フォルダにする
+            currentGhBrowsePath = 'document';
+            showGhStatus('📂 document フォルダを読み込み中...', '#58a6ff');
+            
+            // 'document' を取得してみて、エラー（404など）ならルート '' を再取得する
+            const success = await fetchGitHubDir(currentGhBrowsePath);
+            if (!success) {
+                currentGhBrowsePath = '';
+                await fetchGitHubDir(currentGhBrowsePath);
+            }
         }
 
         // 指定パスのGitHubリポジトリ内容を取得
@@ -3804,7 +3820,7 @@ ${slidesHtml}
                     } else {
                         fileListEl.innerHTML = `<div style="font-size: 0.85rem; color: #f85149; padding: 0.5rem;">❌ エラー: ${res.status}</div>`;
                     }
-                    return;
+                    return false;
                 }
 
                 const items = await res.json();
@@ -3816,9 +3832,11 @@ ${slidesHtml}
                 });
 
                 renderFileBrowser(items, path);
+                return true;
             } catch (err) {
                 console.error('GitHub fetch dir failed:', err);
                 fileListEl.innerHTML = `<div style="font-size: 0.85rem; color: #f85149; padding: 0.5rem;">❌ エラー: ${err.message}</div>`;
+                return false;
             }
         }
 
