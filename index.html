@@ -3524,7 +3524,7 @@ ${slidesHtml}
             showGhStatus('📥 GitHubから読み込み中...', '#58a6ff');
             try {
                 const res = await fetch(
-                    `https://api.github.com/repos/${repo}/contents/${path}?ref=${branch}`,
+                    `https://api.github.com/repos/${repo}/contents/${path}?ref=${branch}&_=${Date.now()}`,
                     {
                         headers: {
                             'Authorization': `token ${token}`,
@@ -3572,7 +3572,7 @@ ${slidesHtml}
                 let sha = null;
                 try {
                     const checkRes = await fetch(
-                        `https://api.github.com/repos/${repo}/contents/${path}?ref=${branch}`,
+                        `https://api.github.com/repos/${repo}/contents/${path}?ref=${branch}&_=${Date.now()}`,
                         {
                             headers: {
                                 'Authorization': `token ${token}`,
@@ -3670,7 +3670,7 @@ ${slidesHtml}
             renderBreadcrumb(path);
 
             try {
-                const url = `https://api.github.com/repos/${repo}/contents/${path ? path : ''}?ref=${branch}`;
+                const url = `https://api.github.com/repos/${repo}/contents/${path ? path : ''}?ref=${branch}&_=${Date.now()}`;
                 const res = await fetch(url, {
                     headers: {
                         'Authorization': `token ${token}`,
