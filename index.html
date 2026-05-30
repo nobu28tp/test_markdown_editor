@@ -2667,22 +2667,60 @@ paginate: true
 
                 // アスペクト比を動的に判別
                 let layoutName = 'LAYOUT_16x9';
-                const firstSlide = previewContainer.querySelector('.marp-slide-wrapper');
-                if (firstSlide) {
-                    const section = firstSlide.querySelector('section');
-                    if (section) {
-                        const w = parseFloat(section.style.width) || section.clientWidth || 1280;
-                        const h = parseFloat(section.style.height) || section.clientHeight || 720;
-                        if (Math.abs((w / h) - (4 / 3)) < 0.1) {
-                            layoutName = 'LAYOUT_4x3';
-                        }
+                let slideW = 1280, slideH = 720;
+                const firstSection = previewContainer.querySelector('.marp-slide-wrapper section');
+                if (firstSection) {
+                    const cs = getComputedStyle(firstSection);
+                    const cw = parseFloat(cs.width) || 1280;
+                    const ch = parseFloat(cs.height) || 720;
+                    if (Math.abs((cw / ch) - (4 / 3)) < 0.1) {
+                        layoutName = 'LAYOUT_4x3';
+                        slideW = 960; slideH = 720;
                     }
                 }
                 pptx.layout = layoutName;
 
-                const isLandscape = layoutName === 'LAYOUT_16x9';
-                const w = isLandscape ? 1280 : 960;
-                const h = isLandscape ? 720 : 720;
+                // ──────────────────────────────────────────────────
+                // Marp CSS を SVG コンテキスト不要に変換（キャプチャ用）
+                // Marp Core は svg > foreignObject > section というDOM構造を使い、
+                // CSS セレクタもこの構造に依存している。html2canvas は foreignObject
+                // 内のHTMLを正しくレンダリングできないため、section を SVG の外に
+                // 取り出して通常の HTML として再構築する。その際に CSS セレクタも
+                // SVG パスを省略した形に変換する必要がある。
+                // ──────────────────────────────────────────────────
+                const marpStyleContent = document.getElementById('marp-style').textContent;
+                let captureCss = marpStyleContent
+                    // svg[data-marpit-svg] > foreignObject > section → .marp-slide-wrapper > section
+                    .replace(/>\s*svg[^{]*?>\s*foreignObject\s*>\s*/g, '> ')
+                    // svg[data-marpit-svg] 単独セレクタを除去
+                    .replace(/svg\[data-marpit-svg\]\s*/g, '')
+                    // 残った > svg パスを除去
+                    .replace(/>\s*svg\b/g, '');
+
+                // キャプチャ専用の確実なレイアウト上書きスタイル
+                captureCss += `
+                    .pptx-capture .marp-slide-wrapper {
+                        width: ${slideW}px !important;
+                        height: ${slideH}px !important;
+                        position: relative !important;
+                        overflow: hidden !important;
+                        box-shadow: none !important;
+                        border-radius: 0 !important;
+                    }
+                    .pptx-capture .marp-slide-wrapper > section {
+                        position: absolute !important;
+                        top: 0 !important;
+                        left: 0 !important;
+                        width: ${slideW}px !important;
+                        height: ${slideH}px !important;
+                        transform: none !important;
+                        transform-origin: top left !important;
+                        overflow: hidden !important;
+                        display: flex !important;
+                        flex-direction: column !important;
+                        box-sizing: border-box !important;
+                    }
+                `;
 
                 // 各スライドをループでキャプチャ
                 for (let i = 0; i < slideWrappers.length; i++) {
@@ -2690,33 +2728,75 @@ paginate: true
 
                     const origWrapper = slideWrappers[i];
 
-                    // キャプチャ用のクローンを作成して一時的にbodyに追加（プレビューの縮小に影響されないようにする）
-                    const clone = origWrapper.cloneNode(true);
-                    clone.style.position = 'absolute';
-                    clone.style.left = '-9999px';
-                    clone.style.top = '-9999px';
-                    clone.style.setProperty('--preview-scale', '1');
-                    clone.style.width = w + 'px';
-                    clone.style.height = h + 'px';
+                    // ── キャプチャ用DOM構造を構築 ──
+                    // <div class="marpit pptx-capture">
+                    //   <style>...変換済みCSS...</style>
+                    //   <div class="marp-slide-wrapper">
+                    //     <section>...スライド内容...</section>  ← SVGの外に取り出す
+                    //   </div>
+                    // </div>
+                    const captureRoot = document.createElement('div');
+                    captureRoot.className = 'marpit pptx-capture';
+                    captureRoot.style.cssText = `position:fixed;left:-10000px;top:0;width:${slideW}px;height:${slideH}px;overflow:hidden;z-index:-9999;color-scheme:light;`;
 
-                    const section = clone.querySelector('section');
-                    if (section) {
-                        section.style.transform = 'scale(1)';
-                        section.style.width = w + 'px';
-                        section.style.height = h + 'px';
+                    const styleTag = document.createElement('style');
+                    styleTag.textContent = captureCss;
+                    captureRoot.appendChild(styleTag);
+
+                    // wrapper を作成
+                    const wrapperDiv = document.createElement('div');
+                    wrapperDiv.className = 'marp-slide-wrapper';
+
+                    // section を取得
+                    // Marp Core: svg[data-marpit-svg] > foreignObject > section
+                    // Built-in: wrapper 直下の section
+                    const marpSvg = origWrapper.querySelector('svg[data-marpit-svg]');
+                    let sectionSource;
+                    if (marpSvg) {
+                        const fo = marpSvg.querySelector('foreignObject');
+                        sectionSource = fo ? fo.querySelector('section') : origWrapper.querySelector('section');
+                    } else {
+                        sectionSource = origWrapper.querySelector('section');
                     }
 
-                    document.body.appendChild(clone);
+                    if (sectionSource) {
+                        const sectionClone = sectionSource.cloneNode(true);
+                        wrapperDiv.appendChild(sectionClone);
+                    }
 
-                    // html2canvasでキャプチャ
-                    const canvas = await html2canvas(clone, {
+                    captureRoot.appendChild(wrapperDiv);
+                    document.body.appendChild(captureRoot);
+
+                    // Mermaid 図の SVG を PNG に事前変換（html2canvas の SVG レンダリング制限を回避）
+                    const mermaidSvgs = Array.from(wrapperDiv.querySelectorAll('.mermaid-container svg'));
+                    for (const mSvg of mermaidSvgs) {
+                        try {
+                            const pngResult = await convertSvgToPng(mSvg);
+                            if (pngResult && pngResult.src) {
+                                const img = document.createElement('img');
+                                img.src = pngResult.src;
+                                img.style.width = pngResult.width + 'px';
+                                img.style.height = pngResult.height + 'px';
+                                img.style.maxWidth = '100%';
+                                img.style.display = 'block';
+                                mSvg.parentNode.replaceChild(img, mSvg);
+                            }
+                        } catch (e) {
+                            console.warn('Mermaid SVG→PNG conversion failed:', e);
+                        }
+                    }
+
+                    // html2canvas でキャプチャ（foreignObject を介さない通常 HTML）
+                    const canvas = await html2canvas(captureRoot, {
+                        width: slideW,
+                        height: slideH,
                         scale: 2, // 高解像度
                         useCORS: true,
                         backgroundColor: null,
                         logging: false
                     });
 
-                    document.body.removeChild(clone);
+                    document.body.removeChild(captureRoot);
 
                     const imgData = canvas.toDataURL('image/png');
 
