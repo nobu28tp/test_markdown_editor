@@ -37,9 +37,17 @@
     <!-- Icons (Lucide) -->
     <script src="https://unpkg.com/lucide@latest"></script>
 
+    <!-- PptxGenJS (PowerPoint Export) -->
+    <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+
     <!-- app files (inlined) -->
     <style>
         :root {
+            /* 共通フォント */
+            --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            --font-mono: 'Fira Code', ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", Menlo, monospace;
+
+            /* デフォルト（ダークモード） */
             --bg-color: #0d1117;
             --pane-bg: #161b22;
             --text-primary: #e6edf3;
@@ -53,8 +61,43 @@
             --btn-secondary-bg: #1f6feb;
             --btn-secondary-hover: #388bfd;
 
-            --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            --font-mono: 'Fira Code', ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", Menlo, monospace;
+            /* ダークモード用シンタックスカラー */
+            --syntax-header: #79c0ff;
+            --syntax-quote: #8b949e;
+            --syntax-strong: #c9d1d9;
+            --syntax-em: #d2a8ff;
+            --syntax-link: #58a6ff;
+            --syntax-url: #a5d6ff;
+            --syntax-variable: #ff7b72;
+            --syntax-comment: #8b949e;
+            --syntax-string: #a5d6ff;
+        }
+
+        /* ライトモード */
+        html[data-theme="light"] {
+            --bg-color: #f6f8fa;
+            --pane-bg: #ffffff;
+            --text-primary: #1f2328;
+            --text-secondary: #656d76;
+            --accent-color: #0969da;
+            --accent-hover: #0851ac;
+            --border-color: #d0d7de;
+            --header-bg: rgba(255, 255, 255, 0.75);
+            --btn-primary-bg: #1f883d;
+            --btn-primary-hover: #1a7f37;
+            --btn-secondary-bg: #0969da;
+            --btn-secondary-hover: #0851ac;
+
+            /* ライトモード用シンタックスカラー */
+            --syntax-header: #0550ae;
+            --syntax-quote: #57606a;
+            --syntax-strong: #1f2328;
+            --syntax-em: #8250df;
+            --syntax-link: #0969da;
+            --syntax-url: #0a3069;
+            --syntax-variable: #cf222e;
+            --syntax-comment: #6e7781;
+            --syntax-string: #0a3069;
         }
 
         * {
@@ -466,48 +509,47 @@
             border-left: 2px solid var(--text-primary) !important;
         }
 
-        /* Markdown Syntax Highlighting in Editor (Dark variations) */
         .cm-s-default .cm-header {
-            color: #79c0ff;
+            color: var(--syntax-header);
             font-weight: bold;
         }
 
         .cm-s-default .cm-quote {
-            color: #8b949e;
+            color: var(--syntax-quote);
             font-style: italic;
         }
 
         .cm-s-default .cm-strong {
-            color: #c9d1d9;
+            color: var(--syntax-strong);
             font-weight: bold;
         }
 
         .cm-s-default .cm-em {
-            color: #d2a8ff;
+            color: var(--syntax-em);
             font-style: italic;
         }
 
         .cm-s-default .cm-link {
-            color: #58a6ff;
+            color: var(--syntax-link);
             text-decoration: underline;
         }
 
         .cm-s-default .cm-url {
-            color: #a5d6ff;
+            color: var(--syntax-url);
         }
 
         .cm-s-default .cm-variable-2,
         .cm-s-default .cm-variable-3 {
-            color: #ff7b72;
+            color: var(--syntax-variable);
         }
 
         .cm-s-default .cm-comment {
-            color: #8b949e;
+            color: var(--syntax-comment);
         }
 
         .cm-s-default .cm-string,
         .cm-s-default .cm-string-2 {
-            color: #a5d6ff;
+            color: var(--syntax-string);
         }
 
         /* Preview Specific */
@@ -934,6 +976,10 @@
                 <button class="btn btn-outline" id="btn-github-sync" style="border-color: rgba(88, 166, 255, 0.4);" title="GitHubリポジトリと連携する">
                     <i data-lucide="github"></i>
                     <span>GitHub連携</span>
+                </button>
+                <button class="btn btn-outline" id="btn-theme-toggle" style="border-color: var(--accent-color);" title="テーマ切り替え (ライト/ダーク)">
+                    <i data-lucide="sun"></i>
+                    <span>ライトモード</span>
                 </button>
             </div>
         </header>
@@ -1745,6 +1791,16 @@ paginate: true
 
         // Initial setup
         function init() {
+            // テーマの初期化と復元
+            const savedTheme = localStorage.getItem('lumina_theme') || 'dark';
+            setTheme(savedTheme);
+
+            // テーマ切り替えボタンのイベント登録
+            const themeToggleBtn = document.getElementById('btn-theme-toggle');
+            if (themeToggleBtn) {
+                themeToggleBtn.addEventListener('click', toggleTheme);
+            }
+
             // Start loading Marp Core in the background (non-blocking)
             loadMarp().then(() => {
                 // Re-render preview once Marp is loaded
@@ -1781,6 +1837,7 @@ paginate: true
                     btn.classList.add('active');
                     previewMode = btn.dataset.mode;
                     updatePreview(editor.getValue());
+                    updateExportButtonState();
                 });
             });
 
@@ -1837,6 +1894,9 @@ paginate: true
                 editor.setValue(defaultText);
                 updatePreview(defaultText);
             }
+
+            // エクスポートボタンの状態を初期化
+            updateExportButtonState();
 
             // ローカルフォルダ連携の自動接続試行
             tryAutoConnectLocalFolder();
@@ -2148,6 +2208,29 @@ paginate: true
             });
         }
 
+        // Mode-based export button display & style update
+        function updateExportButtonState() {
+            const btn = document.getElementById('btn-export-word');
+            if (!btn) return;
+            const icon = btn.querySelector('i');
+            const text = btn.querySelector('span');
+            if (previewMode === 'slide') {
+                if (icon) icon.setAttribute('data-lucide', 'presentation');
+                if (text) text.textContent = 'PowerPoint出力';
+                // PowerPointのブランドカラー（オレンジ系）へ変更
+                btn.style.backgroundColor = '#d24726';
+                btn.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+            } else {
+                if (icon) icon.setAttribute('data-lucide', 'file-text');
+                if (text) text.textContent = 'Word出力';
+                // 元のスタイルに戻す
+                btn.style.backgroundColor = '';
+                btn.style.borderColor = '';
+            }
+            if (window.lucide) {
+                window.lucide.createIcons({ root: btn });
+            }
+        }
 
         // Update Preview Panel
         async function updatePreview(markdownText) {
@@ -2162,6 +2245,7 @@ paginate: true
                     slideBtn.classList.add('active');
                     docBtn.classList.remove('active');
                     previewMode = 'slide';
+                    updateExportButtonState();
                 } else if (!isMarpDetected && previewMode === 'slide') {
                     // If user manually forced slide but no marp:true, still keep slide mode
                 }
@@ -2567,8 +2651,102 @@ paginate: true
             });
         }
 
+        // Export as .pptx (PowerPoint)
+        async function handleExportPptx() {
+            try {
+                updateStatus('saving', 'PowerPoint出力を準備中...');
+
+                const slideWrappers = Array.from(previewContainer.querySelectorAll('.marp-slide-wrapper'));
+                if (slideWrappers.length === 0) {
+                    alert("スライドのレンダリングデータが見つかりません。プレビューを表示した状態で実行してください。");
+                    updateStatus('normal', '出力失敗');
+                    return;
+                }
+
+                const pptx = new PptxGenJS();
+
+                // アスペクト比を動的に判別
+                let layoutName = 'LAYOUT_16x9';
+                const firstSlide = previewContainer.querySelector('.marp-slide-wrapper');
+                if (firstSlide) {
+                    const section = firstSlide.querySelector('section');
+                    if (section) {
+                        const w = parseFloat(section.style.width) || section.clientWidth || 1280;
+                        const h = parseFloat(section.style.height) || section.clientHeight || 720;
+                        if (Math.abs((w / h) - (4 / 3)) < 0.1) {
+                            layoutName = 'LAYOUT_4x3';
+                        }
+                    }
+                }
+                pptx.layout = layoutName;
+
+                const isLandscape = layoutName === 'LAYOUT_16x9';
+                const w = isLandscape ? 1280 : 960;
+                const h = isLandscape ? 720 : 720;
+
+                // 各スライドをループでキャプチャ
+                for (let i = 0; i < slideWrappers.length; i++) {
+                    updateStatus('saving', `スライド画像を生成中 (${i + 1}/${slideWrappers.length})...`);
+
+                    const origWrapper = slideWrappers[i];
+
+                    // キャプチャ用のクローンを作成して一時的にbodyに追加（プレビューの縮小に影響されないようにする）
+                    const clone = origWrapper.cloneNode(true);
+                    clone.style.position = 'absolute';
+                    clone.style.left = '-9999px';
+                    clone.style.top = '-9999px';
+                    clone.style.setProperty('--preview-scale', '1');
+                    clone.style.width = w + 'px';
+                    clone.style.height = h + 'px';
+
+                    const section = clone.querySelector('section');
+                    if (section) {
+                        section.style.transform = 'scale(1)';
+                        section.style.width = w + 'px';
+                        section.style.height = h + 'px';
+                    }
+
+                    document.body.appendChild(clone);
+
+                    // html2canvasでキャプチャ
+                    const canvas = await html2canvas(clone, {
+                        scale: 2, // 高解像度
+                        useCORS: true,
+                        backgroundColor: null,
+                        logging: false
+                    });
+
+                    document.body.removeChild(clone);
+
+                    const imgData = canvas.toDataURL('image/png');
+
+                    const slide = pptx.addSlide();
+                    slide.addImage({
+                        data: imgData,
+                        x: 0,
+                        y: 0,
+                        w: '100%',
+                        h: '100%'
+                    });
+                }
+
+                updateStatus('saving', 'ファイルを生成中...');
+                const title = getDocTitle();
+                await pptx.writeFile({ fileName: title + '.pptx' });
+
+                updateStatus('saved', 'PowerPoint出力完了');
+            } catch (err) {
+                console.error("PowerPoint export failed:", err);
+                updateStatus('error', '出力失敗');
+                alert("PowerPointエクスポート中にエラーが発生しました: " + err.message);
+            }
+        }
+
         // Export as .docx
         async function handleExportWord() {
+            if (previewMode === 'slide') {
+                return handleExportPptx();
+            }
             try {
                 updateStatus('saving', 'Word出力生成中...');
 
@@ -3632,6 +3810,35 @@ ${slidesHtml}
                 };
             }
             return null;
+        }
+
+        // ===== テーマ（ライト/ダーク）切り替え機能 =====
+        function toggleTheme() {
+            const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            setTheme(newTheme);
+        }
+
+        function setTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            localStorage.setItem('lumina_theme', theme);
+            
+            // ボタンのアイコンとテキストを更新
+            const themeBtn = document.getElementById('btn-theme-toggle');
+            if (themeBtn) {
+                const icon = themeBtn.querySelector('i');
+                const text = themeBtn.querySelector('span');
+                if (theme === 'light') {
+                    if (icon) icon.setAttribute('data-lucide', 'moon');
+                    if (text) text.textContent = 'ダークモード';
+                } else {
+                    if (icon) icon.setAttribute('data-lucide', 'sun');
+                    if (text) text.textContent = 'ライトモード';
+                }
+                if (window.lucide) {
+                    window.lucide.createIcons({ root: themeBtn });
+                }
+            }
         }
 
         // リポジトリ名 (owner/repo) のクレンジング
