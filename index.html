@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Markdown Editor (Ver.5.4.2)</title>
+    <title>Markdown Editor (Ver.5.5.0)</title>
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1035,19 +1035,16 @@
             height: calc(var(--slide-h) * 1px * var(--preview-scale, 1));
         }
 
-        .marp-slide-wrapper>section {
+        .marp-slide-wrapper>section,
+        .marp-slide-wrapper>svg {
             display: block !important;
             position: absolute !important;
             top: 0;
             left: 0;
+            width: 1280px !important;
+            height: 720px !important;
             transform-origin: top left !important;
             transform: scale(var(--preview-scale, 1)) !important;
-        }
-
-        .marp-slide-wrapper>svg {
-            width: 100% !important;
-            height: 100% !important;
-            display: block !important;
         }
 
         .marp-page-number {
@@ -1662,7 +1659,7 @@
             <div class="header-left">
                 <div class="logo">
                     <i data-lucide="pen-tool"></i>
-                    <h1>Markdown Editor <span style="font-size: 0.7em; color: var(--text-secondary);">(Ver.5.4.2)</span>
+                    <h1>Markdown Editor <span style="font-size: 0.7em; color: var(--text-secondary);">(Ver.5.5.0)</span>
                     </h1>
                 </div>
                 <div class="status-indicator" id="save-status">
@@ -2756,11 +2753,25 @@ paginate: true
             if (!markdownText) return '';
             const lines = markdownText.split('\n');
             let inCodeBlock = false;
+            let inFrontMatter = false;
             const newLines = [];
+
+            if (lines.length > 0 && lines[0].trim() === '---') {
+                inFrontMatter = true;
+            }
 
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i];
                 const trimmed = line.trim();
+
+                // YAMLフロントマターのスキップ処理（Marpのパース破壊を防ぐ）
+                if (inFrontMatter) {
+                    newLines.push(line);
+                    if (i > 0 && trimmed === '---') {
+                        inFrontMatter = false;
+                    }
+                    continue;
+                }
 
                 // コードブロックの判定
                 if (trimmed.startsWith('```')) {
