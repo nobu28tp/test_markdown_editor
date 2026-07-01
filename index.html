@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Markdown Editor (Ver.5.5.4)</title>
+    <title>Markdown Editor (Ver.5.5.5)</title>
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1806,7 +1806,7 @@
             <div class="header-left">
                 <div class="logo">
                     <i data-lucide="pen-tool"></i>
-                    <h1>Markdown Editor <span style="font-size: 0.7em; color: var(--text-secondary);">(Ver.5.5.4)</span>
+                    <h1>Markdown Editor <span style="font-size: 0.7em; color: var(--text-secondary);">(Ver.5.5.5)</span>
                     </h1>
                 </div>
                 <div class="status-indicator" id="save-status">
@@ -3063,7 +3063,8 @@ paginate: true
                     generationConfig: {
                         temperature: 0.2,
                         maxOutputTokens: 1800,
-                        responseMimeType: 'application/json'
+                        responseMimeType: 'application/json',
+                        responseSchema: getGeminiProofreadResponseSchema()
                     }
                 })
             });
@@ -3132,16 +3133,52 @@ paginate: true
             };
         }
 
+        function getGeminiProofreadResponseSchema() {
+            return {
+                type: 'OBJECT',
+                properties: {
+                    comments: {
+                        type: 'ARRAY',
+                        items: {
+                            type: 'OBJECT',
+                            properties: {
+                                start: { type: 'INTEGER' },
+                                end: { type: 'INTEGER' },
+                                selectedText: { type: 'STRING' },
+                                category: {
+                                    type: 'STRING',
+                                    enum: ['typo', 'grammar', 'style', 'consistency', 'markdown']
+                                },
+                                message: { type: 'STRING' },
+                                suggestion: { type: 'STRING' }
+                            },
+                            required: ['start', 'end', 'selectedText', 'category', 'message', 'suggestion']
+                        }
+                    }
+                },
+                required: ['comments']
+            };
+        }
+
         function parseProofreadJson(outputText) {
             const clean = String(outputText || '')
                 .replace(/^```json\s*/i, '')
                 .replace(/^```\s*/i, '')
                 .replace(/```$/i, '')
                 .trim();
-            const parsed = JSON.parse(extractJsonPayload(clean));
+            const parsed = JSON.parse(repairJsonPayload(extractJsonPayload(clean)));
             if (Array.isArray(parsed)) return parsed;
             if (Array.isArray(parsed.comments)) return parsed.comments;
             return [];
+        }
+
+        function repairJsonPayload(jsonText) {
+            return jsonText
+                .replace(/,\s*([}\]])/g, '$1')
+                .replace(/[\u0000-\u001F]+/g, match => {
+                    if (match === '\n' || match === '\r' || match === '\t') return match;
+                    return '';
+                });
         }
 
         function extractJsonPayload(text) {
@@ -5267,7 +5304,7 @@ paginate: true
         }
 
         // ── App Version ──
-        const APP_VERSION = '5.5.4';
+        const APP_VERSION = '5.5.5';
 
         // ══════════════════════════════════════
         // 🎨 Document Theme Engine
