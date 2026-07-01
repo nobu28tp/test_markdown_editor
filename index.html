@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Markdown Editor (Ver.5.5.5)</title>
+    <title>Markdown Editor (Ver.5.5.6)</title>
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -992,6 +992,10 @@
             gap: 0.4rem;
         }
 
+        .proofread-card-actions .proofread-mini-btn {
+            flex: 0 0 auto;
+        }
+
         .proofread-mini-btn {
             border: 1px solid var(--border-color);
             background: transparent;
@@ -1004,6 +1008,12 @@
 
         .proofread-mini-btn:hover {
             border-color: var(--accent-color);
+            color: var(--accent-color);
+        }
+
+        .proofread-mini-btn.primary {
+            border-color: rgba(88, 166, 255, 0.65);
+            background: rgba(88, 166, 255, 0.12);
             color: var(--accent-color);
         }
 
@@ -1806,7 +1816,7 @@
             <div class="header-left">
                 <div class="logo">
                     <i data-lucide="pen-tool"></i>
-                    <h1>Markdown Editor <span style="font-size: 0.7em; color: var(--text-secondary);">(Ver.5.5.5)</span>
+                    <h1>Markdown Editor <span style="font-size: 0.7em; color: var(--text-secondary);">(Ver.5.5.6)</span>
                     </h1>
                 </div>
                 <div class="status-indicator" id="save-status">
@@ -2109,6 +2119,10 @@
                     </div>
                 </div>
                 <div class="proofread-actions">
+                    <button class="btn btn-outline" id="btn-manual-comment" title="選択範囲に手動コメントを追加">
+                        <i data-lucide="message-plus"></i>
+                        <span>コメント追加</span>
+                    </button>
                     <button class="btn btn-outline" id="btn-rule-proofread" title="ブラウザ内のルールで校正">
                         <i data-lucide="spell-check"></i>
                         <span>ルール校正</span>
@@ -2674,7 +2688,7 @@ paginate: true
                 start,
                 end,
                 selectedText: actualText,
-                category: comment.category || 'style',
+                category: ['typo', 'grammar', 'style', 'consistency', 'markdown', 'comment'].includes(comment.category) ? comment.category : 'style',
                 message: comment.message || '表現を確認してください。',
                 suggestion: comment.suggestion || '',
                 source,
@@ -2737,7 +2751,14 @@ paginate: true
             clearProofreadMarks();
             proofreadComments = comments;
             activeProofreadId = null;
+            refreshProofreadMarks();
 
+            renderProofreadComments();
+            if (!options.skipSave) saveProofreadComments();
+        }
+
+        function refreshProofreadMarks() {
+            clearProofreadMarks();
             proofreadComments.forEach(comment => {
                 if (comment.status !== 'open') return;
                 const from = editor.posFromIndex(comment.start);
@@ -2748,9 +2769,6 @@ paginate: true
                 });
                 proofreadMarks.push({ id: comment.id, mark });
             });
-
-            renderProofreadComments();
-            if (!options.skipSave) saveProofreadComments();
         }
 
         function renderProofreadComments() {
@@ -2799,7 +2817,8 @@ paginate: true
                 grammar: '文法',
                 style: '表現',
                 consistency: '表記ゆれ',
-                markdown: 'Markdown'
+                markdown: 'Markdown',
+                comment: 'コメント'
             };
             return labels[category] || category || '確認';
         }
@@ -2810,9 +2829,57 @@ paginate: true
                 openai: 'OpenAI',
                 gemini: 'Gemini',
                 ai: 'AI',
+                manual: 'Manual',
                 saved: 'Saved'
             };
             return labels[source] || source || 'AI';
+        }
+
+        function addManualProofreadComment() {
+            if (!editor) return;
+            const selection = editor.getSelection();
+            if (!selection || !selection.trim()) {
+                alert('コメントを付けたい本文範囲を選択してください。');
+                editor.focus();
+                return;
+            }
+
+            const message = prompt('コメントを入力してください。');
+            if (message === null) return;
+            const trimmedMessage = message.trim();
+            if (!trimmedMessage) {
+                alert('コメント本文を入力してください。');
+                return;
+            }
+
+            const suggestion = prompt('修正案があれば入力してください。空欄でも追加できます。', '');
+            if (suggestion === null) return;
+
+            const from = editor.getCursor('from');
+            const to = editor.getCursor('to');
+            const start = editor.indexFromPos(from);
+            const end = editor.indexFromPos(to);
+            const text = editor.getValue();
+            const comment = {
+                id: `manual-${Date.now()}-${start}`,
+                start,
+                end,
+                selectedText: text.slice(start, end),
+                category: 'comment',
+                message: trimmedMessage,
+                suggestion: suggestion.trim(),
+                source: 'manual',
+                status: 'open'
+            };
+
+            proofreadComments.push(comment);
+            activeProofreadId = comment.id;
+            refreshProofreadMarks();
+            renderProofreadComments();
+            saveProofreadComments();
+            openProofreadPane();
+            focusProofreadComment(comment.id);
+            updateStatus('saved', 'コメントを追加しました');
         }
 
         function focusProofreadComment(id) {
@@ -3949,6 +4016,7 @@ paginate: true
                 }
             });
             document.getElementById('btn-close-proofread').addEventListener('click', closeProofreadPane);
+            document.getElementById('btn-manual-comment').addEventListener('click', addManualProofreadComment);
             document.getElementById('btn-rule-proofread').addEventListener('click', runRuleProofread);
             document.getElementById('btn-ai-proofread').addEventListener('click', runAiProofread);
             document.getElementById('btn-proofread-settings').addEventListener('click', configureAiProofread);
@@ -5304,7 +5372,7 @@ paginate: true
         }
 
         // ── App Version ──
-        const APP_VERSION = '5.5.5';
+        const APP_VERSION = '5.5.6';
 
         // ══════════════════════════════════════
         // 🎨 Document Theme Engine
