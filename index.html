@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Markdown Editor (Ver.5.5.3)</title>
+    <title>Markdown Editor (Ver.5.5.4)</title>
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1806,7 +1806,7 @@
             <div class="header-left">
                 <div class="logo">
                     <i data-lucide="pen-tool"></i>
-                    <h1>Markdown Editor <span style="font-size: 0.7em; color: var(--text-secondary);">(Ver.5.5.3)</span>
+                    <h1>Markdown Editor <span style="font-size: 0.7em; color: var(--text-secondary);">(Ver.5.5.4)</span>
                     </h1>
                 </div>
                 <div class="status-indicator" id="save-status">
@@ -2988,10 +2988,10 @@ paginate: true
 
             const instructions = [
                 'あなたは日本語Markdown文書の校正者です。',
-                '本文を直接書き換えず、校正コメントだけをJSON配列で返してください。',
+                '本文を直接書き換えず、校正コメントだけをJSONで返してください。',
                 '誤字脱字、誤変換、表記ゆれ、文法、読みづらい表現を指摘してください。',
                 'Markdown記法、URL、コード、固有名詞を不用意に指摘しないでください。',
-                '各要素は start, end, selectedText, category, message, suggestion を持つJSONオブジェクトにしてください。',
+                'comments配列の各要素は start, end, selectedText, category, message, suggestion を持つJSONオブジェクトにしてください。',
                 'start/endは入力文字列全体に対する0始まりの文字オフセットです。',
                 'categoryは typo, grammar, style, consistency, markdown のどれかにしてください。',
                 '確信度が低いものは出さないでください。'
@@ -3027,6 +3027,9 @@ paginate: true
                     model,
                     instructions,
                     input: text,
+                    text: {
+                        format: getProofreadJsonSchemaFormat()
+                    },
                     temperature: 0.2,
                     max_output_tokens: 1800,
                     store: false
@@ -3095,16 +3098,65 @@ paginate: true
             return chunks.join('\n').trim();
         }
 
+        function getProofreadJsonSchemaFormat() {
+            return {
+                type: 'json_schema',
+                name: 'proofread_comments',
+                strict: true,
+                schema: {
+                    type: 'object',
+                    additionalProperties: false,
+                    required: ['comments'],
+                    properties: {
+                        comments: {
+                            type: 'array',
+                            items: {
+                                type: 'object',
+                                additionalProperties: false,
+                                required: ['start', 'end', 'selectedText', 'category', 'message', 'suggestion'],
+                                properties: {
+                                    start: { type: 'integer' },
+                                    end: { type: 'integer' },
+                                    selectedText: { type: 'string' },
+                                    category: {
+                                        type: 'string',
+                                        enum: ['typo', 'grammar', 'style', 'consistency', 'markdown']
+                                    },
+                                    message: { type: 'string' },
+                                    suggestion: { type: 'string' }
+                                }
+                            }
+                        }
+                    }
+                }
+            };
+        }
+
         function parseProofreadJson(outputText) {
-            const clean = outputText
+            const clean = String(outputText || '')
                 .replace(/^```json\s*/i, '')
                 .replace(/^```\s*/i, '')
                 .replace(/```$/i, '')
                 .trim();
-            const parsed = JSON.parse(clean);
+            const parsed = JSON.parse(extractJsonPayload(clean));
             if (Array.isArray(parsed)) return parsed;
             if (Array.isArray(parsed.comments)) return parsed.comments;
             return [];
+        }
+
+        function extractJsonPayload(text) {
+            if (text.startsWith('{') || text.startsWith('[')) return text;
+
+            const objectStart = text.indexOf('{');
+            const arrayStart = text.indexOf('[');
+            const starts = [objectStart, arrayStart].filter(index => index >= 0);
+            if (!starts.length) return text;
+
+            const start = Math.min(...starts);
+            const openChar = text[start];
+            const closeChar = openChar === '{' ? '}' : ']';
+            const end = text.lastIndexOf(closeChar);
+            return end > start ? text.slice(start, end + 1).trim() : text;
         }
 
         // Mermaidグラフ描画崩れ・白飛び防止用の共通CSS保護ルール
@@ -5215,7 +5267,7 @@ paginate: true
         }
 
         // ── App Version ──
-        const APP_VERSION = '5.5.3';
+        const APP_VERSION = '5.5.4';
 
         // ══════════════════════════════════════
         // 🎨 Document Theme Engine
