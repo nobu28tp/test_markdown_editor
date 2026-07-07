@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Markdown Editor (Ver.5.5.8)</title>
+    <title>Markdown Editor (Ver.5.5.10)</title>
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1117,6 +1117,20 @@
             color: var(--syntax-comment);
         }
 
+        .CodeMirror.generated-full-readonly {
+            background: rgba(88, 166, 255, 0.04);
+        }
+
+        .CodeMirror.generated-full-readonly::before {
+            content: "全体版は閲覧専用です。更新は分割保存で行います。";
+            display: block;
+            padding: 0.45rem 0.75rem;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            font-size: 0.78rem;
+            background: rgba(88, 166, 255, 0.08);
+        }
+
         .cm-s-default .cm-string,
         .cm-s-default .cm-string-2 {
             color: var(--syntax-string);
@@ -1843,7 +1857,7 @@
             <div class="header-left">
                 <div class="logo">
                     <i data-lucide="pen-tool"></i>
-                    <h1>Markdown Editor <span style="font-size: 0.7em; color: var(--text-secondary);">(Ver.5.5.8)</span>
+                    <h1>Markdown Editor <span style="font-size: 0.7em; color: var(--text-secondary);">(Ver.5.5.10)</span>
                     </h1>
                 </div>
                 <div class="status-indicator" id="save-status">
@@ -2162,6 +2176,10 @@
                         <i data-lucide="settings"></i>
                         <span>設定</span>
                     </button>
+                    <button class="btn btn-outline" id="btn-proofread-refresh" title="共有フォルダのコメントを再読み込み">
+                        <i data-lucide="refresh-cw"></i>
+                        <span>共有読込</span>
+                    </button>
                 </div>
                 <div class="proofread-summary" id="proofread-summary">校正コメントはまだありません</div>
                 <div class="proofread-filter" id="proofread-filter">
@@ -2444,7 +2462,8 @@ paginate: true
 # 1. はじめに
 セクション1のテキストをここに書きます。</pre>
                         </li>
-                        <li><strong>分割保存の実行</strong>: フォルダ連携した状態で「分割保存」ボタンをクリックすると、指定した各ファイル（例: <code>01_はじめに.md</code> 等）と、結合用のインデックスファイル（元のファイル名）に自動分割されて保存されます。</li>
+                        <li><strong>分割保存の実行</strong>: フォルダ連携した状態で「分割保存」ボタンをクリックすると、指定した各ファイル（例: <code>01_はじめに.md</code> 等）、結合用のインデックスファイル（元のファイル名）、全体確認用の <code>元ファイル名.full.md</code> が保存されます。</li>
+                        <li><strong>全体版の扱い</strong>: <code>.full.md</code> は分割保存時にだけ更新される確認用ファイルです。通常のフォルダ保存では上書きできません。</li>
                         <li><strong>結合読み込み（インデックスファイル）</strong>:
                             目次ファイルに自動生成される <code>&lt;!-- include: ファイル名.md --&gt;</code> の指示に基づき、ファイルを開いた際に同一フォルダ内の分割ファイルを自動結合して1つの連続したドキュメントとして画面に読み込みます。
                         </li>
@@ -2638,6 +2657,11 @@ paginate: true
         let isApplyingProofreadChange = false;
         let proofreadFilter = 'all';
         let currentDocumentLength = 0;
+        let activeLocalFileDirectoryPath = '';
+        let activeLocalFileOriginalHash = '';
+        let splitSourceFileHashes = {};
+        let sharedProofreadRevision = '';
+        let isGeneratedFullReadOnly = false;
 
         // ============================================================
         // App Constants (マジックナンバーの定数化)
@@ -2727,7 +2751,7 @@ paginate: true
 
             const actualText = text.slice(start, end);
             return {
-                id: `${source}-${Date.now()}-${index}-${start}`,
+                id: comment.id || `${source}-${Date.now()}-${index}-${start}`,
                 start,
                 end,
                 selectedText: actualText,
@@ -2784,24 +2808,75 @@ paginate: true
             return `${text.length}:${hash}`;
         }
 
+        function getDocumentHash(text) {
+            return getProofreadTextHash(text || '');
+        }
+
+        function createRevision() {
+            return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+        }
+
+        function getTimestampForFilename() {
+            const d = new Date();
+            const pad = (n) => String(n).padStart(2, '0');
+            return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+        }
+
+        function getProofreadCommentPayload(text, comments) {
+            return {
+                version: 1,
+                textHash: getProofreadTextHash(text),
+                updatedAt: new Date().toISOString(),
+                revision: createRevision(),
+                comments
+            };
+        }
+
+        function normalizeCommentForStorage(comment) {
+            return {
+                ...comment,
+                id: comment.id || `comment-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                status: comment.status || 'open',
+                updatedAt: new Date().toISOString()
+            };
+        }
+
+        function collectCurrentProofreadComments() {
+            const text = editor ? editor.getValue() : '';
+            proofreadComments.forEach(comment => {
+                const mark = getProofreadMark(comment.id);
+                const found = mark ? mark.find() : null;
+                if (found) {
+                    comment.start = editor.indexFromPos(found.from);
+                    comment.end = editor.indexFromPos(found.to);
+                    comment.selectedText = text.slice(comment.start, comment.end);
+                }
+            });
+            return proofreadComments.map(normalizeCommentForStorage);
+        }
+
+        function mergeProofreadComments(localComments, remoteComments) {
+            const merged = new Map();
+            (Array.isArray(remoteComments) ? remoteComments : []).forEach(comment => {
+                if (comment && comment.id) merged.set(comment.id, normalizeCommentForStorage(comment));
+            });
+            (Array.isArray(localComments) ? localComments : []).forEach(comment => {
+                if (!comment || !comment.id) return;
+                const normalized = normalizeCommentForStorage(comment);
+                const existing = merged.get(comment.id);
+                if (existing && existing.status === 'deleted' && normalized.status === 'open') return;
+                merged.set(comment.id, normalized);
+            });
+            return Array.from(merged.values());
+        }
+
         function saveProofreadComments() {
             try {
                 const text = editor ? editor.getValue() : '';
-                proofreadComments.forEach(comment => {
-                    const mark = getProofreadMark(comment.id);
-                    const found = mark ? mark.find() : null;
-                    if (found) {
-                        comment.start = editor.indexFromPos(found.from);
-                        comment.end = editor.indexFromPos(found.to);
-                        comment.selectedText = text.slice(comment.start, comment.end);
-                    }
-                });
-                const openComments = proofreadComments.filter(comment => comment.status === 'open');
+                const openComments = collectCurrentProofreadComments();
                 localStorage.setItem('lumina_autosave', text);
-                localStorage.setItem(PROOFREAD_STORAGE_KEY, JSON.stringify({
-                    textHash: getProofreadTextHash(text),
-                    comments: openComments
-                }));
+                localStorage.setItem(PROOFREAD_STORAGE_KEY, JSON.stringify(getProofreadCommentPayload(text, openComments)));
+                saveSharedProofreadComments(openComments, text);
             } catch (error) {
                 console.warn('Failed to save proofread comments:', error);
             }
@@ -2817,6 +2892,7 @@ paginate: true
                 }
                 const ignoredRanges = buildIgnoredRanges(text);
                 const restored = saved.comments
+                    .filter(comment => !comment.status || comment.status === 'open')
                     .map((comment, index) => normalizeProofreadComment(comment, index, comment.source || 'saved', text, ignoredRanges))
                     .filter(Boolean);
                 setProofreadComments(restored, { skipSave: true });
@@ -2951,6 +3027,7 @@ paginate: true
                 gemini: 'Gemini',
                 ai: 'AI',
                 manual: 'Manual',
+                shared: 'Shared',
                 saved: 'Saved'
             };
             return labels[source] || source || 'AI';
@@ -2958,6 +3035,10 @@ paginate: true
 
         function addManualProofreadComment() {
             if (!editor) return;
+            if (isGeneratedFullReadOnly) {
+                alert('全体版は閲覧専用です。コメントや修正は分割元ファイルで行ってください。');
+                return;
+            }
             const selection = editor.getSelection();
             if (!selection || !selection.trim()) {
                 alert('コメントを付けたい本文範囲を選択してください。');
@@ -3061,26 +3142,53 @@ paginate: true
             const mark = getProofreadMark(id);
             if (mark) mark.clear();
             proofreadMarks = proofreadMarks.filter(item => item.id !== id);
-            proofreadComments = proofreadComments.filter(item => item.id !== id);
+            const comment = proofreadComments.find(item => item.id === id);
+            if (comment) {
+                comment.status = 'deleted';
+                comment.deletedAt = new Date().toISOString();
+            }
             if (activeProofreadId === id) activeProofreadId = null;
             renderProofreadComments();
             saveProofreadComments();
         }
 
-        function clearProofreadComments() {
+        function clearProofreadComments(options = {}) {
             clearProofreadMarks();
             proofreadComments = [];
             activeProofreadId = null;
             renderProofreadComments();
-            saveProofreadComments();
+            if (!options.skipSave) saveProofreadComments();
         }
 
         function restoreOrClearProofreadComments(text) {
             if (!restoreProofreadComments(text)) {
-                clearProofreadComments();
+                clearProofreadComments({ skipSave: true });
                 return false;
             }
             return true;
+        }
+
+        async function restoreSharedOrLocalProofreadComments(text) {
+            if (await restoreSharedProofreadComments(text)) {
+                return true;
+            }
+            return restoreOrClearProofreadComments(text);
+        }
+
+        async function refreshSharedProofreadComments() {
+            if (!activeLocalFileHandle) {
+                alert('共有コメントを読むには、先にローカルフォルダ連携からMarkdownファイルを開いてください。');
+                return;
+            }
+
+            const loaded = await restoreSharedProofreadComments(editor.getValue());
+            if (loaded) {
+                openProofreadPane();
+                updateStatus('saved', '共有コメントを読み込みました');
+            } else {
+                updateStatus('normal', '共有コメントはありません');
+                alert('この本文に一致する共有コメントは見つかりませんでした。');
+            }
         }
 
         function escapeHtml(value) {
@@ -3093,6 +3201,10 @@ paginate: true
         }
 
         function runRuleProofread() {
+            if (isGeneratedFullReadOnly) {
+                alert('全体版は閲覧専用です。校正は分割元ファイルで行ってください。');
+                return;
+            }
             openProofreadPane();
             const text = editor.getValue();
             const ignoredRanges = buildIgnoredRanges(text);
@@ -3174,6 +3286,10 @@ paginate: true
         }
 
         async function runAiProofread() {
+            if (isGeneratedFullReadOnly) {
+                alert('全体版は閲覧専用です。AI校正は分割元ファイルで行ってください。');
+                return;
+            }
             openProofreadPane();
             let provider = localStorage.getItem('lumina_ai_proofread_provider') || DEFAULT_AI_PROVIDER;
             let apiKey = localStorage.getItem(`lumina_ai_proofread_key_${provider}`) || localStorage.getItem('lumina_ai_proofread_key') || '';
@@ -3973,13 +4089,16 @@ paginate: true
             // Load initial content from LocalStorage (Resume function)
             const savedContent = localStorage.getItem('lumina_autosave');
             if (savedContent) {
+                setGeneratedFullReadOnly(false);
                 editor.setValue(savedContent);
+                setGeneratedFullReadOnly(isGeneratedFullDocument(savedContent));
                 currentDocumentLength = savedContent.length;
                 updatePreview(savedContent);
                 const restoredComments = restoreProofreadComments(savedContent);
                 updateStatus('saved', restoredComments ? '本文と校正コメントを復元しました' : '復元完了');
             } else {
                 const defaultText = `# Markdown Editorへようこそ\n\nここに入力し始めると、**リアルタイム**で右側にプレビューが表示されます。`;
+                setGeneratedFullReadOnly(false);
                 editor.setValue(defaultText);
                 currentDocumentLength = defaultText.length;
                 updatePreview(defaultText);
@@ -3996,6 +4115,13 @@ paginate: true
             let isTyping = false;
             let typingTimer = null;
             let wordCountTimeout = null;
+
+            editor.on('beforeChange', (cm, changeObj) => {
+                if (isGeneratedFullReadOnly && changeObj.origin !== 'setValue') {
+                    changeObj.cancel();
+                    updateStatus('normal', '全体版は閲覧専用です');
+                }
+            });
 
             editor.on('keydown', (cm, event) => {
                 const key = event.key;
@@ -4044,10 +4170,6 @@ paginate: true
 
                 hasUnsavedChanges = true;
                 updateStatus('normal', '編集中...');
-                if (proofreadComments.length && !isApplyingProofreadChange) {
-                    clearProofreadComments();
-                }
-
                 // Debounce preview rendering to keep editor typing smooth
                 if (previewTimeout) clearTimeout(previewTimeout);
                 if (isPreviewPaneVisible()) {
@@ -4173,6 +4295,7 @@ paginate: true
             document.getElementById('btn-rule-proofread').addEventListener('click', runRuleProofread);
             document.getElementById('btn-ai-proofread').addEventListener('click', runAiProofread);
             document.getElementById('btn-proofread-settings').addEventListener('click', configureAiProofread);
+            document.getElementById('btn-proofread-refresh').addEventListener('click', refreshSharedProofreadComments);
             document.querySelectorAll('.proofread-filter-btn').forEach(button => {
                 button.addEventListener('click', () => setProofreadFilter(button.dataset.filter));
             });
@@ -5440,6 +5563,7 @@ paginate: true
         }
 
         function performAutosave() {
+            if (isGeneratedFullReadOnly) return;
             if (!hasUnsavedChanges) return;
 
             updateStatus('saving', '自動保存中...');
@@ -5449,6 +5573,7 @@ paginate: true
             setTimeout(() => {
                 try {
                     localStorage.setItem('lumina_autosave', content);
+                    saveProofreadComments();
                     hasUnsavedChanges = false;
                     
                     const now = new Date();
@@ -5488,7 +5613,13 @@ paginate: true
             }
 
             editor.setValue('');
+            setGeneratedFullReadOnly(false);
             currentDocumentLength = 0;
+            activeLocalFileHandle = null;
+            activeLocalFileDirectoryPath = '';
+            activeLocalFileOriginalHash = '';
+            splitSourceFileHashes = {};
+            sharedProofreadRevision = '';
             updatePreview('');
             clearProofreadComments();
             localStorage.removeItem('lumina_autosave');
@@ -5512,7 +5643,14 @@ paginate: true
                 const reader = new FileReader();
                 reader.onload = (event) => {
                     const content = event.target.result;
+                    activeLocalFileHandle = null;
+                    activeLocalFileDirectoryPath = '';
+                    activeLocalFileOriginalHash = '';
+                    splitSourceFileHashes = {};
+                    sharedProofreadRevision = '';
+                    setGeneratedFullReadOnly(false);
                     editor.setValue(content);
+                    setGeneratedFullReadOnly(isGeneratedFullDocument(content));
                     currentDocumentLength = content.length;
                     updatePreview(content);
                     const restoredComments = restoreOrClearProofreadComments(content);
@@ -5541,7 +5679,7 @@ paginate: true
         }
 
         // ── App Version ──
-        const APP_VERSION = '5.5.8';
+        const APP_VERSION = '5.5.10';
 
         // ══════════════════════════════════════
         // 🎨 Document Theme Engine
@@ -6136,6 +6274,46 @@ paginate: true
             return raw.replace(/[\\/:*?"<>|]/g, '_');
         }
 
+        const GENERATED_FULL_MARKER = 'lumina-generated-full';
+
+        function isGeneratedFullDocument(text) {
+            return new RegExp(`<!--\\s*${GENERATED_FULL_MARKER}:`).test(text || '');
+        }
+
+        function getGeneratedFullSourceName(text) {
+            const match = String(text || '').match(new RegExp(`<!--\\s*${GENERATED_FULL_MARKER}:\\s*source=([^;\\s]+)`));
+            return match ? match[1].trim() : '';
+        }
+
+        function stripGeneratedFullMarker(text) {
+            return String(text || '').replace(new RegExp(`^<!--\\s*${GENERATED_FULL_MARKER}:[\\s\\S]*?-->\\n?`), '');
+        }
+
+        function getFullVersionFileName(mainFileName) {
+            const base = String(mainFileName || 'index.md').replace(/\.md$/i, '');
+            return `${base}.full.md`;
+        }
+
+        function buildFullVersionContent(mainFileName, fullText) {
+            const body = stripGeneratedFullMarker(fullText);
+            return `<!-- ${GENERATED_FULL_MARKER}: source=${mainFileName}; update=split-save-only -->\n${body}`;
+        }
+
+        function setGeneratedFullReadOnly(enabled) {
+            isGeneratedFullReadOnly = !!enabled;
+            if (editor) {
+                editor.setOption('readOnly', enabled ? 'nocursor' : false);
+                const wrapper = editor.getWrapperElement();
+                if (wrapper) {
+                    wrapper.classList.toggle('generated-full-readonly', !!enabled);
+                }
+            }
+            const localFileInput = document.getElementById('local-file-name');
+            if (localFileInput) {
+                localFileInput.readOnly = !!enabled;
+            }
+        }
+
         // Save as .md file
         async function handleSaveMd() {
             const content = editor.getValue();
@@ -6189,7 +6367,7 @@ paginate: true
                 return;
             }
 
-            const content = editor.getValue();
+            const content = stripGeneratedFullMarker(editor.getValue());
             const lines = content.split('\n');
             const parts = [];
             let currentPart = { filename: '', contentLines: [] };
@@ -6227,32 +6405,69 @@ paginate: true
 
             try {
                 updateStatus('saving', 'ファイルを自動分割して保存中...');
-                
-                // 1. 各分割ファイルを保存
-                for (const part of parts) {
-                    const fileHandle = await activeLocalDirectoryHandle.getFileHandle(part.filename, { create: true });
-                    if (await verifyLocalPermission(fileHandle, true)) {
-                        const writable = await fileHandle.createWritable();
-                        await writable.write(part.contentLines.join('\n'));
-                        await writable.close();
-                    }
-                }
+                setGeneratedFullReadOnly(false);
 
-                // 2. メインファイルを保存
                 let mainHandle = activeLocalFileHandle;
+                let mainExpectedHash = activeLocalFileOriginalHash || '';
+                if (mainHandle && isGeneratedFullDocument(editor.getValue())) {
+                    const sourceName = getGeneratedFullSourceName(editor.getValue()) || 'index.md';
+                    mainHandle = await activeLocalDirectoryHandle.getFileHandle(sourceName, { create: true });
+                    activeLocalFileHandle = mainHandle;
+                    mainExpectedHash = '';
+                    document.getElementById('local-file-name').value = mainHandle.name;
+                }
                 if (!mainHandle) {
                     mainHandle = await activeLocalDirectoryHandle.getFileHandle('index.md', { create: true });
                     activeLocalFileHandle = mainHandle;
                     document.getElementById('local-file-name').value = mainHandle.name;
                 }
-                
-                if (await verifyLocalPermission(mainHandle, true)) {
-                    const writable = await mainHandle.createWritable();
-                    await writable.write(mainContentLines.join('\n'));
-                    await writable.close();
+
+                const targets = parts.map(part => ({
+                    dirHandle: activeLocalDirectoryHandle,
+                    fileName: part.filename,
+                    content: part.contentLines.join('\n'),
+                    expectedHash: splitSourceFileHashes[part.filename] || ''
+                }));
+                targets.push({
+                    dirHandle: activeLocalDirectoryHandle,
+                    fileName: mainHandle.name,
+                    content: mainContentLines.join('\n'),
+                    expectedHash: mainExpectedHash
+                });
+                const fullVersionFileName = getFullVersionFileName(mainHandle.name);
+                targets.push({
+                    dirHandle: activeLocalDirectoryHandle,
+                    fileName: fullVersionFileName,
+                    content: buildFullVersionContent(mainHandle.name, content),
+                    expectedHash: '',
+                    generatedFull: true
+                });
+
+                const overwriteCheck = await ensureSplitSaveCanOverwrite(targets);
+                if (!overwriteCheck.ok) {
+                    updateStatus('normal', '分割保存を中止しました');
+                    return;
                 }
 
-                updateStatus('saved', `自動分割保存が完了しました（計 ${parts.length + 1} ファイル）`);
+                // 1. 各分割ファイルを保存
+                for (const target of targets) {
+                    if (!target.fileHandle) {
+                        target.fileHandle = await target.dirHandle.getFileHandle(target.fileName, { create: true });
+                    }
+                    await writeTextToFileHandle(target.fileHandle, target.content);
+                }
+
+                activeLocalFileHandle = mainHandle;
+                activeLocalFileDirectoryPath = '';
+                activeLocalFileOriginalHash = getDocumentHash(mainContentLines.join('\n'));
+                splitSourceFileHashes = {};
+                parts.forEach(part => {
+                    splitSourceFileHashes[part.filename] = getDocumentHash(part.contentLines.join('\n'));
+                });
+
+                updateStatus('saved', overwriteCheck.backups.length
+                    ? `バックアップ作成後に分割保存が完了しました（バックアップ ${overwriteCheck.backups.length} 件）`
+                    : `自動分割保存が完了しました（計 ${parts.length + 2} ファイル）`);
                 
                 // ディレクトリ一覧を再ロード
                 if (typeof fetchLocalDir === 'function') {
@@ -6682,6 +6897,10 @@ paginate: true
             }
         }
 
+        function cleanupPdfCaptureRoots() {
+            document.querySelectorAll('[data-pdf-capture-root="true"]').forEach(node => node.remove());
+        }
+
         async function replaceSvgsWithPngs(root) {
             const svgs = Array.from(root.querySelectorAll('svg'));
             for (const svg of svgs) {
@@ -6751,7 +6970,8 @@ paginate: true
         async function renderMarpSlideToCanvas(origWrapper, slideW, slideH, captureCss) {
             const captureRoot = document.createElement('div');
             captureRoot.className = 'marpit pdf-capture';
-            captureRoot.style.cssText = `position:fixed;left:-10000px;top:0;width:${slideW}px;height:${slideH}px;overflow:hidden;z-index:-9999;color-scheme:light;`;
+            captureRoot.dataset.pdfCaptureRoot = 'true';
+            captureRoot.style.cssText = `position:absolute;left:0;top:0;width:${slideW}px;height:${slideH}px;overflow:hidden;z-index:-1;pointer-events:none;color-scheme:light;background:#ffffff;`;
 
             const styleTag = document.createElement('style');
             styleTag.textContent = captureCss;
@@ -6785,7 +7005,11 @@ paginate: true
                     useCORS: true,
                     allowTaint: false,
                     backgroundColor: '#ffffff',
-                    logging: false
+                    logging: false,
+                    windowWidth: slideW,
+                    windowHeight: slideH,
+                    scrollX: 0,
+                    scrollY: 0
                 });
             } finally {
                 document.body.removeChild(captureRoot);
@@ -6835,91 +7059,225 @@ paginate: true
             pdf.save(title + '.pdf');
         }
 
-        async function exportDocumentModePdf(title) {
-            const pageWidth = 595.28;
-            const pageHeight = 841.89;
-            const renderWidth = 794;
+        const PDF_TEXT_FONT_NAME = 'NotoSansJP';
+        const PDF_TEXT_FONT_FILE = 'NotoSansJP-VF.ttf';
+        const PDF_TEXT_FONT_URLS = [
+            './NotoSansJP-VF.ttf',
+            'https://raw.githubusercontent.com/notofonts/noto-cjk/main/Sans/Variable/TTF/Subset/NotoSansJP-VF.ttf'
+        ];
+        let cachedPdfTextFontBase64 = null;
 
-            const wrapper = document.createElement('div');
-            wrapper.style.cssText = `position:fixed;left:-10000px;top:0;width:${renderWidth}px;background:#ffffff;color:#24292f;z-index:-9999;color-scheme:light;`;
+        function arrayBufferToBase64(buffer) {
+            const bytes = new Uint8Array(buffer);
+            let binary = '';
+            const chunkSize = 0x8000;
+            for (let i = 0; i < bytes.length; i += chunkSize) {
+                binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+            }
+            return btoa(binary);
+        }
 
-            const styleTag = document.createElement('style');
-            styleTag.textContent = `
-                .pdf-document-capture {
-                    width: ${renderWidth}px;
-                    min-height: 1123px;
-                    padding: 76px 57px;
-                    background: #ffffff !important;
-                    color: #24292f !important;
-                    font-family: "Meiryo", "Yu Gothic", "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
-                    font-size: 14px;
-                    line-height: 1.65;
-                    overflow-wrap: break-word;
+        async function loadPdfTextFont(pdf) {
+            let lastError = null;
+            if (!cachedPdfTextFontBase64) {
+                for (const fontUrl of PDF_TEXT_FONT_URLS) {
+                    try {
+                        const response = await fetch(fontUrl, { mode: 'cors', cache: 'force-cache' });
+                        if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+                        cachedPdfTextFontBase64 = arrayBufferToBase64(await response.arrayBuffer());
+                        break;
+                    } catch (err) {
+                        lastError = err;
+                    }
                 }
-                .pdf-document-capture h1,
-                .pdf-document-capture h2,
-                .pdf-document-capture h3,
-                .pdf-document-capture h4,
-                .pdf-document-capture h5,
-                .pdf-document-capture h6 { color: #111827 !important; page-break-after: avoid; }
-                .pdf-document-capture pre,
-                .pdf-document-capture code { background: #f6f8fa !important; color: #24292f !important; }
-                .pdf-document-capture pre { white-space: pre-wrap; word-break: break-word; }
-                .pdf-document-capture img,
-                .pdf-document-capture svg,
-                .pdf-document-capture iframe { max-width: 100% !important; height: auto !important; }
-                .pdf-document-capture table { width: 100%; border-collapse: collapse; table-layout: fixed; word-break: break-word; }
-                .pdf-document-capture th,
-                .pdf-document-capture td { border: 1px solid #d0d7de; padding: 6px 10px; }
-                .pdf-document-capture blockquote { border-left: 4px solid #d0d7de; color: #57606a; padding-left: 16px; margin-left: 0; }
-                ${customThemeStyleTag && customThemeStyleTag.textContent ? customThemeStyleTag.textContent : ''}
-            `;
-            wrapper.appendChild(styleTag);
+            }
 
-            const exportContainer = document.createElement('div');
-            exportContainer.id = 'preview-content';
-            exportContainer.className = 'markdown-body pdf-document-capture';
-            exportContainer.innerHTML = previewContainer.innerHTML;
-            wrapper.appendChild(exportContainer);
-            document.body.appendChild(wrapper);
+            if (!cachedPdfTextFontBase64) {
+                throw new Error('日本語テキストPDF用フォントを読み込めませんでした。ネットワーク接続を確認してください。');
+            }
 
             try {
-                await replaceSvgsWithPngs(exportContainer);
-                if (document.fonts && document.fonts.ready) {
-                    await document.fonts.ready;
-                }
-
-                const canvas = await html2canvas(exportContainer, {
-                    width: renderWidth,
-                    height: exportContainer.scrollHeight,
-                    scale: 2,
-                    useCORS: true,
-                    allowTaint: false,
-                    backgroundColor: '#ffffff',
-                    logging: false,
-                    windowWidth: renderWidth,
-                    windowHeight: exportContainer.scrollHeight
-                });
-
-                const jsPDF = window.jspdf.jsPDF;
-                const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4', compress: true });
-                const pageHeightPx = Math.floor(canvas.width * (pageHeight / pageWidth));
-                let sourceY = 0;
-                let pageIndex = 0;
-
-                while (sourceY < canvas.height) {
-                    const sliceHeight = Math.min(pageHeightPx, canvas.height - sourceY);
-                    if (pageIndex > 0) pdf.addPage('a4', 'portrait');
-                    const targetHeight = pageHeight * (sliceHeight / pageHeightPx);
-                    addCanvasPageToPdf(pdf, canvas, sourceY, sliceHeight, pageWidth, pageHeight, targetHeight);
-                    sourceY += sliceHeight;
-                    pageIndex++;
-                }
-
-                pdf.save(title + '.pdf');
-            } finally {
-                document.body.removeChild(wrapper);
+                pdf.addFileToVFS(PDF_TEXT_FONT_FILE, cachedPdfTextFontBase64);
+                pdf.addFont(PDF_TEXT_FONT_FILE, PDF_TEXT_FONT_NAME, 'normal');
+                pdf.setFont(PDF_TEXT_FONT_NAME, 'normal');
+            } catch (err) {
+                throw new Error('日本語フォントをPDFに登録できませんでした: ' + (err.message || lastError?.message || err));
             }
+        }
+
+        function normalizePdfText(text) {
+            return (text || '')
+                .replace(/\u200b/g, '')
+                .replace(/\u00a0/g, ' ')
+                .replace(/[ \t]+\n/g, '\n')
+                .replace(/\n{3,}/g, '\n\n')
+                .trim();
+        }
+
+        function getDirectText(node) {
+            return Array.from(node.childNodes)
+                .filter(child => child.nodeType === Node.TEXT_NODE || (child.nodeType === Node.ELEMENT_NODE && !isPdfBlockElement(child)))
+                .map(child => normalizePdfText(child.innerText || child.textContent || ''))
+                .filter(Boolean)
+                .join(' ');
+        }
+
+        function isPdfBlockElement(node) {
+            if (!node || node.nodeType !== Node.ELEMENT_NODE) return false;
+            return /^(H[1-6]|P|UL|OL|LI|PRE|BLOCKQUOTE|TABLE|IMG|HR)$/.test(node.tagName);
+        }
+
+        function collectPdfTextBlocks(root) {
+            const blocks = [];
+
+            function walk(node) {
+                if (!node || node.nodeType !== Node.ELEMENT_NODE) return;
+                if (node.matches('.marp-page-number, .page-number, script, style')) return;
+
+                const tag = node.tagName;
+                if (/^H[1-6]$/.test(tag)) {
+                    const text = normalizePdfText(node.innerText);
+                    if (text) blocks.push({ type: 'heading', level: Number(tag.slice(1)), text });
+                    return;
+                }
+                if (tag === 'P') {
+                    const text = normalizePdfText(node.innerText);
+                    if (text) blocks.push({ type: 'paragraph', text });
+                    return;
+                }
+                if (tag === 'UL' || tag === 'OL') {
+                    Array.from(node.children).filter(child => child.tagName === 'LI').forEach((li, index) => {
+                        const text = normalizePdfText(li.innerText);
+                        if (text) blocks.push({ type: 'list', marker: tag === 'OL' ? `${index + 1}.` : '-', text });
+                    });
+                    return;
+                }
+                if (tag === 'PRE') {
+                    const text = normalizePdfText(node.innerText);
+                    if (text) blocks.push({ type: 'code', text });
+                    return;
+                }
+                if (tag === 'BLOCKQUOTE') {
+                    const text = normalizePdfText(node.innerText);
+                    if (text) blocks.push({ type: 'quote', text });
+                    return;
+                }
+                if (tag === 'TABLE') {
+                    const rows = Array.from(node.querySelectorAll('tr')).map(row =>
+                        Array.from(row.children).map(cell => normalizePdfText(cell.innerText))
+                    ).filter(row => row.some(Boolean));
+                    if (rows.length) blocks.push({ type: 'table', rows });
+                    return;
+                }
+                if (tag === 'IMG') {
+                    const alt = normalizePdfText(node.getAttribute('alt') || node.getAttribute('title') || '');
+                    blocks.push({ type: 'paragraph', text: alt ? `[画像: ${alt}]` : '[画像]' });
+                    return;
+                }
+                if (tag === 'HR') {
+                    blocks.push({ type: 'rule' });
+                    return;
+                }
+
+                const directText = getDirectText(node);
+                if (directText && !Array.from(node.children).some(isPdfBlockElement)) {
+                    blocks.push({ type: 'paragraph', text: directText });
+                    return;
+                }
+
+                Array.from(node.children).forEach(walk);
+            }
+
+            Array.from(root.children).forEach(walk);
+            return blocks;
+        }
+
+        function exportPdfTextBlocks(pdf, blocks) {
+            const pageWidth = pdf.internal.pageSize.getWidth();
+            const pageHeight = pdf.internal.pageSize.getHeight();
+            const margin = 48;
+            const contentWidth = pageWidth - margin * 2;
+            let y = margin;
+
+            function ensureSpace(height) {
+                if (y + height > pageHeight - margin) {
+                    pdf.addPage();
+                    pdf.setFont(PDF_TEXT_FONT_NAME, 'normal');
+                    y = margin;
+                }
+            }
+
+            function writeWrapped(text, options = {}) {
+                const fontSize = options.fontSize || 11;
+                const lineHeight = options.lineHeight || fontSize * 1.55;
+                const indent = options.indent || 0;
+                const before = options.before || 0;
+                const after = options.after ?? lineHeight * 0.45;
+                const maxWidth = contentWidth - indent;
+                const lines = pdf.splitTextToSize(text, maxWidth);
+
+                ensureSpace(before + Math.max(lineHeight, lines.length * lineHeight));
+                y += before;
+                pdf.setFontSize(fontSize);
+                if (options.color) pdf.setTextColor(...options.color);
+                else pdf.setTextColor(31, 35, 40);
+                pdf.text(lines, margin + indent, y, { baseline: 'top' });
+                y += lines.length * lineHeight + after;
+            }
+
+            blocks.forEach(block => {
+                if (block.type === 'heading') {
+                    const sizes = { 1: 20, 2: 16, 3: 14, 4: 12, 5: 11, 6: 11 };
+                    writeWrapped(block.text, {
+                        fontSize: sizes[block.level] || 12,
+                        lineHeight: (sizes[block.level] || 12) * 1.45,
+                        before: block.level <= 2 ? 10 : 6,
+                        after: 7,
+                        color: [17, 24, 39]
+                    });
+                    if (block.level <= 2) {
+                        ensureSpace(6);
+                        pdf.setDrawColor(208, 215, 222);
+                        pdf.line(margin, y, pageWidth - margin, y);
+                        y += 10;
+                    }
+                } else if (block.type === 'list') {
+                    writeWrapped(`${block.marker} ${block.text}`, { fontSize: 10.5, indent: 12, after: 3 });
+                } else if (block.type === 'code') {
+                    writeWrapped(block.text, { fontSize: 9, lineHeight: 13, before: 4, after: 8, color: [36, 41, 47] });
+                } else if (block.type === 'quote') {
+                    pdf.setDrawColor(208, 215, 222);
+                    pdf.line(margin, y + 2, margin, y + 20);
+                    writeWrapped(block.text, { fontSize: 10.5, indent: 14, color: [87, 96, 106] });
+                } else if (block.type === 'table') {
+                    block.rows.forEach(row => {
+                        writeWrapped(row.join('  |  '), { fontSize: 9.5, lineHeight: 13, after: 2 });
+                    });
+                    y += 8;
+                } else if (block.type === 'rule') {
+                    ensureSpace(12);
+                    pdf.setDrawColor(208, 215, 222);
+                    pdf.line(margin, y, pageWidth - margin, y);
+                    y += 12;
+                } else {
+                    writeWrapped(block.text, { fontSize: 11 });
+                }
+            });
+        }
+
+        async function exportDocumentModePdf(title) {
+            const jsPDF = window.jspdf.jsPDF;
+            const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4', compress: true, putOnlyUsedFonts: true });
+            await loadPdfTextFont(pdf);
+
+            const blocks = collectPdfTextBlocks(previewContainer);
+            if (blocks.length === 0) {
+                throw new Error('PDFに出力するテキストが見つかりません。プレビューを表示した状態で再実行してください。');
+            }
+
+            pdf.setProperties({ title });
+            exportPdfTextBlocks(pdf, blocks);
+            pdf.save(title + '.pdf');
         }
 
         // Export as .pdf (direct canvas/PDF engine)
@@ -6927,6 +7285,7 @@ paginate: true
             try {
                 updateStatus('saving', 'PDF生成を準備中...');
                 ensurePdfExportLibraries();
+                cleanupPdfCaptureRoots();
 
                 const isSlideMode = previewContainer.classList.contains('marp-mode');
                 const title = getDocTitle();
@@ -8036,6 +8395,215 @@ ${slidesHtml}
             return false;
         }
 
+        async function readTextFromFileHandle(fileHandle) {
+            if (!(await verifyLocalPermission(fileHandle, false))) {
+                throw new Error('ファイルの読み込み権限がありません。');
+            }
+            const file = await fileHandle.getFile();
+            return await file.text();
+        }
+
+        async function writeTextToFileHandle(fileHandle, text) {
+            if (!(await verifyLocalPermission(fileHandle, true))) {
+                throw new Error('ファイルの書き込み権限がありません。');
+            }
+            const writable = await fileHandle.createWritable();
+            await writable.write(text);
+            await writable.close();
+        }
+
+        async function createLocalFileBackup(dirHandle, fileName, existingText) {
+            const backupName = `${fileName}.backup-${getTimestampForFilename()}`;
+            const backupHandle = await dirHandle.getFileHandle(backupName, { create: true });
+            await writeTextToFileHandle(backupHandle, existingText);
+            return backupName;
+        }
+
+        async function getFileHandleIfExists(dirHandle, fileName) {
+            try {
+                return await dirHandle.getFileHandle(fileName, { create: false });
+            } catch (err) {
+                if (err.name === 'NotFoundError') return null;
+                throw err;
+            }
+        }
+
+        async function checkMarkdownSaveConflict(dirHandle, fileName, expectedHash, nextText) {
+            const existingHandle = await getFileHandleIfExists(dirHandle, fileName);
+            if (!existingHandle) {
+                return { status: 'new', fileHandle: null };
+            }
+
+            const existingText = await readTextFromFileHandle(existingHandle);
+            const existingHash = getDocumentHash(existingText);
+            const nextHash = getDocumentHash(nextText);
+
+            if (existingHash === nextHash || (expectedHash && existingHash === expectedHash)) {
+                return { status: 'clean', fileHandle: existingHandle, existingText, existingHash };
+            }
+
+            return { status: 'conflict', fileHandle: existingHandle, existingText, existingHash };
+        }
+
+        async function resolveSingleMarkdownConflict(dirHandle, fileName, conflict, nextText) {
+            const choice = prompt(
+                `保存先のMarkdownが、読み込み後に他の人によって更新されています。\n\n対象: ${fileName}\n\n次のどれかを入力してください。\nreload: 保存を中止して最新版を読み込む\ncopy: 自分の変更を別名保存する\noverwrite: 既存ファイルをバックアップして上書きする\ncancel: 何もしない`,
+                'reload'
+            );
+            const normalized = (choice || '').trim().toLowerCase();
+
+            if (normalized === 'overwrite') {
+                const backupName = await createLocalFileBackup(dirHandle, fileName, conflict.existingText);
+                return { action: 'overwrite', fileHandle: conflict.fileHandle, backupName };
+            }
+
+            if (normalized === 'copy') {
+                const copyName = `${fileName.replace(/\.md$/i, '')}.conflict-${getTimestampForFilename()}.md`;
+                const copyHandle = await dirHandle.getFileHandle(copyName, { create: true });
+                await writeTextToFileHandle(copyHandle, nextText);
+                return { action: 'copy', fileHandle: copyHandle, copyName };
+            }
+
+            if (normalized === 'reload') {
+                setGeneratedFullReadOnly(false);
+                editor.setValue(conflict.existingText);
+                setGeneratedFullReadOnly(isGeneratedFullDocument(conflict.existingText));
+                currentDocumentLength = conflict.existingText.length;
+                updatePreview(conflict.existingText);
+                localStorage.setItem('lumina_autosave', conflict.existingText);
+                activeLocalFileOriginalHash = conflict.existingHash;
+                hasUnsavedChanges = false;
+                return { action: 'reload' };
+            }
+
+            return { action: 'cancel' };
+        }
+
+        async function ensureSplitSaveCanOverwrite(targets) {
+            const conflicts = [];
+            for (const target of targets) {
+                const check = await checkMarkdownSaveConflict(
+                    target.dirHandle,
+                    target.fileName,
+                    target.expectedHash || '',
+                    target.content
+                );
+                target.fileHandle = check.fileHandle;
+                if (target.generatedFull && check.status === 'conflict' && isGeneratedFullDocument(check.existingText)) {
+                    continue;
+                }
+                if (check.status === 'conflict') {
+                    conflicts.push({ target, check });
+                }
+            }
+
+            if (!conflicts.length) return { ok: true, backups: [] };
+
+            const conflictNames = conflicts.map(item => item.target.fileName).join('\n- ');
+            const choice = prompt(
+                `分割保存の対象ファイルが、読み込み後に他の人によって更新されています。\n\n- ${conflictNames}\n\n次のどれかを入力してください。\noverwrite: 既存ファイルをバックアップして分割保存を続行する\ncancel: 保存を中止する`,
+                'cancel'
+            );
+
+            if ((choice || '').trim().toLowerCase() !== 'overwrite') {
+                return { ok: false, backups: [] };
+            }
+
+            const backups = [];
+            for (const { target, check } of conflicts) {
+                const backupName = await createLocalFileBackup(target.dirHandle, target.fileName, check.existingText);
+                backups.push(backupName);
+            }
+            return { ok: true, backups };
+        }
+
+        async function getActiveLocalFileDirectoryHandle() {
+            if (!activeLocalDirectoryHandle) return null;
+            let dirHandle = activeLocalDirectoryHandle;
+            if (activeLocalFileDirectoryPath) {
+                const parts = activeLocalFileDirectoryPath.split('/');
+                for (const part of parts) {
+                    dirHandle = await dirHandle.getDirectoryHandle(part);
+                }
+            }
+            return dirHandle;
+        }
+
+        function getActiveLocalCommentFileName() {
+            if (!activeLocalFileHandle || !activeLocalFileHandle.name) return '';
+            return `${activeLocalFileHandle.name}.comments.json`;
+        }
+
+        async function readSharedProofreadPayload() {
+            const dirHandle = await getActiveLocalFileDirectoryHandle();
+            const commentFileName = getActiveLocalCommentFileName();
+            if (!dirHandle || !commentFileName) return null;
+
+            try {
+                const commentHandle = await dirHandle.getFileHandle(commentFileName, { create: false });
+                if (!(await verifyLocalPermission(commentHandle, false))) return null;
+                const file = await commentHandle.getFile();
+                const text = await file.text();
+                return JSON.parse(text);
+            } catch (err) {
+                if (err.name !== 'NotFoundError') {
+                    console.warn('Shared proofread comments load failed:', err);
+                }
+                return null;
+            }
+        }
+
+        async function restoreSharedProofreadComments(text) {
+            const saved = await readSharedProofreadPayload();
+            if (!saved || saved.textHash !== getProofreadTextHash(text) || !Array.isArray(saved.comments)) {
+                return false;
+            }
+            sharedProofreadRevision = saved.revision || saved.updatedAt || '';
+
+            const ignoredRanges = buildIgnoredRanges(text);
+            const restored = saved.comments
+                .filter(comment => !comment.status || comment.status === 'open')
+                .map((comment, index) => normalizeProofreadComment(comment, index, comment.source || 'shared', text, ignoredRanges))
+                .filter(Boolean);
+            setProofreadComments(restored, { skipSave: true });
+            return true;
+        }
+
+        async function saveSharedProofreadComments(comments, text) {
+            const dirHandle = await getActiveLocalFileDirectoryHandle();
+            const commentFileName = getActiveLocalCommentFileName();
+            if (!dirHandle || !commentFileName) return;
+
+            try {
+                const remote = await readSharedProofreadPayload();
+                const remoteChanged = remote
+                    && remote.textHash === getProofreadTextHash(text)
+                    && (remote.revision || remote.updatedAt || '') !== sharedProofreadRevision
+                    && Array.isArray(remote.comments);
+                const mergedComments = remoteChanged
+                    ? mergeProofreadComments(comments, remote.comments)
+                    : comments;
+                const commentHandle = await dirHandle.getFileHandle(commentFileName, { create: true });
+                if (!(await verifyLocalPermission(commentHandle, true))) return;
+                const payload = getProofreadCommentPayload(text, mergedComments);
+                const writable = await commentHandle.createWritable();
+                await writable.write(JSON.stringify(payload, null, 2));
+                await writable.close();
+                sharedProofreadRevision = payload.revision || payload.updatedAt || '';
+                if (remoteChanged) {
+                    const ignoredRanges = buildIgnoredRanges(text);
+                    const restored = mergedComments
+                        .filter(comment => !comment.status || comment.status === 'open')
+                        .map((comment, index) => normalizeProofreadComment(comment, index, comment.source || 'shared', text, ignoredRanges))
+                        .filter(Boolean);
+                    setProofreadComments(restored, { skipSave: true });
+                    updateStatus('saved', '共有コメントをマージしました');
+                }
+            } catch (err) {
+                console.warn('Shared proofread comments save failed:', err);
+            }
+        }
+
         // アプリ起動時の自動再接続の試み
         async function tryAutoConnectLocalFolder() {
             if (!window.showDirectoryPicker) return; // 未サポート対応
@@ -8166,6 +8734,7 @@ ${slidesHtml}
         // ファイルがクリックされたとき
         function selectLocalFile(fileHandle, fileName) {
             activeLocalFileHandle = fileHandle;
+            activeLocalFileDirectoryPath = currentLocalBrowsePath;
             document.getElementById('local-file-name').value = fileName;
             showLocalStatus('📂 ファイルを選択しました: ' + fileName, '#58a6ff');
         }
@@ -8193,6 +8762,7 @@ ${slidesHtml}
                                     reader.onload = (e) => resolveFile(e.target.result);
                                     reader.readAsText(subFile, encoding);
                                 });
+                                splitSourceFileHashes[filename] = getDocumentHash(subText);
                                 newLines.push(`<!-- split: ${filename} -->`);
                                 newLines.push(subText);
                                 continue;
@@ -8228,13 +8798,18 @@ ${slidesHtml}
                         reader.onload = (e) => resolve(e.target.result);
                         reader.readAsText(file, encoding);
                     });
+                    activeLocalFileOriginalHash = getDocumentHash(text);
+                    splitSourceFileHashes = {};
 
                     const mergedText = await resolveIncludes(text, activeLocalDirectoryHandle);
+                    const isFullVersion = isGeneratedFullDocument(text);
 
+                    setGeneratedFullReadOnly(false);
                     editor.setValue(mergedText);
+                    setGeneratedFullReadOnly(isFullVersion);
                     currentDocumentLength = mergedText.length;
                     updatePreview(mergedText);
-                    const restoredComments = restoreOrClearProofreadComments(mergedText);
+                    const restoredComments = await restoreSharedOrLocalProofreadComments(mergedText);
                     localStorage.setItem('lumina_autosave', mergedText);
                     
                     // ドキュメントタイトル入力欄にファイル名（拡張子なし）をセット
@@ -8244,7 +8819,9 @@ ${slidesHtml}
                     }
 
                     showLocalStatus('✅ ファイルの読み込みに成功しました', '#3fb950');
-                    updateStatus('saved', restoredComments ? 'ローカル本文と校正コメントを復元しました' : 'ローカル読込完了');
+                    updateStatus('saved', isFullVersion
+                        ? '全体版を閲覧専用で開きました'
+                        : (restoredComments ? 'ローカル本文と共有コメントを復元しました' : 'ローカル読込完了'));
                     document.getElementById('local-folder-modal').classList.remove('active');
                 } else {
                     showLocalStatus('❌ ファイルへのアクセス権限が拒否されました', '#f85149');
@@ -8279,10 +8856,10 @@ ${slidesHtml}
                 return;
             }
 
-            // エディタ内のテキストに include / split コメントが含まれていないかチェック（インデックスファイル保護）
-            if (/<!--\s*(include|split):\s*[^\s]+\s*-->/.test(content)) {
-                showLocalStatus('🚫 分割用インデックスファイルの通常保存はブロックされました。「分割保存」ボタンを使用してください。', '#f85149');
-                alert('🚫 このファイルには分割用コメント（<!-- include:... --> または <!-- split:... -->）が含まれています。\n通常の保存で上書きすると結合・分割構造が壊れるため、保存をブロックしました。\n分割ファイルの変更を保存する場合は、ヘッダーの「分割保存」ボタンを使用してください。');
+            // エディタ内のテキストに include / split / generated-full コメントが含まれていないかチェック
+            if (/<!--\s*(include|split):\s*[^\s]+\s*-->/.test(content) || isGeneratedFullDocument(content)) {
+                showLocalStatus('🚫 分割管理ファイルの通常保存はブロックされました。「分割保存」ボタンを使用してください。', '#f85149');
+                alert('🚫 このファイルは分割保存で管理されています。\n通常の保存で上書きすると結合・分割構造や全体版の生成ルールが壊れるため、保存をブロックしました。\n更新する場合は「分割保存」ボタンを使用してください。');
                 return;
             }
 
@@ -8311,9 +8888,9 @@ ${slidesHtml}
                     if (await verifyLocalPermission(existingHandle, false)) {
                         const existingFile = await existingHandle.getFile();
                         const existingText = await existingFile.text();
-                        if (/<!--\s*(include|split):\s*[^\s]+\s*-->/.test(existingText)) {
-                            showLocalStatus('🚫 保存先の既存ファイルがインデックスファイルであるため、保存をブロックしました。', '#f85149');
-                            alert('🚫 上書きしようとしている既存ファイルは分割用のインデックスファイルです。\n通常の保存で上書きすると結合・分割の読み込みが壊れるため、保存をブロックしました。\n「分割保存」ボタンを使用してください。');
+                        if (/<!--\s*(include|split):\s*[^\s]+\s*-->/.test(existingText) || isGeneratedFullDocument(existingText)) {
+                            showLocalStatus('🚫 保存先の既存ファイルが分割管理ファイルであるため、保存をブロックしました。', '#f85149');
+                            alert('🚫 上書きしようとしている既存ファイルは分割保存で管理されています。\n通常の保存で上書きすると結合・分割構造や全体版の生成ルールが壊れるため、保存をブロックしました。\n「分割保存」ボタンを使用してください。');
                             return;
                         }
                     }
@@ -8321,27 +8898,57 @@ ${slidesHtml}
                     // ファイルが存在しない場合は新規作成なので問題なし
                 }
 
-                const fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
-                
-                if (await verifyLocalPermission(fileHandle, true)) {
-                    const writable = await fileHandle.createWritable();
-                    await writable.write(content);
-                    await writable.close();
-                    
-                    activeLocalFileHandle = fileHandle; // 保存に成功したためアクティブ化
+                const expectedHash = activeLocalFileHandle && activeLocalFileHandle.name === fileName
+                    ? activeLocalFileOriginalHash
+                    : '';
+                const conflict = await checkMarkdownSaveConflict(dirHandle, fileName, expectedHash, content);
+                let fileHandle = conflict.fileHandle;
+                let backupName = '';
 
-                    const docTitleInput = document.getElementById('doc-title-input');
-                    if (docTitleInput) {
-                        docTitleInput.value = fileName.replace(/\.md$/, '');
+                if (conflict.status === 'conflict') {
+                    const resolution = await resolveSingleMarkdownConflict(dirHandle, fileName, conflict, content);
+                    if (resolution.action === 'reload') {
+                        showLocalStatus('📥 共有フォルダ上の最新版を読み込みました', '#58a6ff');
+                        updateStatus('normal', '最新版を読み込みました');
+                        return;
                     }
-
-                    showLocalStatus('✅ ファイルを保存しました', '#3fb950');
-                    updateStatus('saved', 'ローカル保存完了');
-
-                    await fetchLocalDir(currentLocalBrowsePath);
-                } else {
-                    showLocalStatus('❌ ファイルへの書き込み権限が拒否されました', '#f85149');
+                    if (resolution.action === 'copy') {
+                        activeLocalFileHandle = resolution.fileHandle;
+                        activeLocalFileDirectoryPath = currentLocalBrowsePath;
+                        activeLocalFileOriginalHash = getDocumentHash(content);
+                        showLocalStatus(`✅ 別名保存しました: ${resolution.copyName}`, '#3fb950');
+                        updateStatus('saved', '衝突版を別名保存しました');
+                        await fetchLocalDir(currentLocalBrowsePath);
+                        return;
+                    }
+                    if (resolution.action !== 'overwrite') {
+                        showLocalStatus('保存がキャンセルされました', '#8b949e');
+                        return;
+                    }
+                    fileHandle = resolution.fileHandle;
+                    backupName = resolution.backupName || '';
                 }
+
+                if (!fileHandle) {
+                    fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
+                }
+                await writeTextToFileHandle(fileHandle, content);
+                
+                activeLocalFileHandle = fileHandle; // 保存に成功したためアクティブ化
+                activeLocalFileDirectoryPath = currentLocalBrowsePath;
+                activeLocalFileOriginalHash = getDocumentHash(content);
+                splitSourceFileHashes = {};
+                saveProofreadComments();
+
+                const docTitleInput = document.getElementById('doc-title-input');
+                if (docTitleInput) {
+                    docTitleInput.value = fileName.replace(/\.md$/, '');
+                }
+
+                showLocalStatus(backupName ? `✅ バックアップ作成後に保存しました: ${backupName}` : '✅ ファイルを保存しました', '#3fb950');
+                updateStatus('saved', backupName ? 'バックアップ作成後に保存完了' : 'ローカル保存完了');
+
+                await fetchLocalDir(currentLocalBrowsePath);
             } catch (err) {
                 console.error("Local file save failed:", err);
                 showLocalStatus('❌ 保存エラー: ' + err.message, '#f85149');
