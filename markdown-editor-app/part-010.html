@@ -1,4 +1,33 @@
- 'flex';
+
+            }
+            
+            updateSearch(input.value);
+
+            if (showReplace) {
+                const replaceInput = document.getElementById('replace-input');
+                if (input.value) {
+                    replaceInput.focus();
+                    replaceInput.select();
+                } else {
+                    input.focus();
+                }
+            } else {
+                input.focus();
+                input.select();
+            }
+        }
+
+        function toggleReplaceRow(show) {
+            const replaceRow = document.getElementById('replace-row');
+            const toggleBtn = document.getElementById('search-toggle-replace');
+            if (!replaceRow) return;
+
+            if (show === undefined) {
+                show = replaceRow.style.display === 'none';
+            }
+            
+            if (show) {
+                replaceRow.style.display = 'flex';
                 toggleBtn.classList.add('active');
             } else {
                 replaceRow.style.display = 'none';
@@ -239,7 +268,7 @@
         }
 
         // ── App Version ──
-        const APP_VERSION = '5.5.10';
+        const APP_VERSION = '5.5.11';
 
         // ══════════════════════════════════════
         // 🎨 Document Theme Engine
@@ -635,25 +664,3 @@
                 docThemeMenu.classList.remove('show');
             }
         });
-
-        // 各テーマの切り替え
-        document.querySelectorAll('#doc-theme-menu .doc-theme-menu-item[data-theme]').forEach(item => {
-            item.addEventListener('click', () => {
-                const theme = item.getAttribute('data-theme');
-                applyDocTheme(theme);
-            });
-        });
-
-        // CSSファイルのロード
-        const btnLoadCssFile = document.getElementById('btn-load-css-file');
-        if (btnLoadCssFile) {
-            btnLoadCssFile.addEventListener('click', () => {
-                const fileInput = document.createElement('input');
-                fileInput.type = 'file';
-                fileInput.accept = '.css';
-                fileInput.onchange = e => {
-                    const file = e.target.files[0];
-                    if (!file) return;
-                    const reader = new FileReader();
-                    reader.onload = event => {
-                        cons
