@@ -1,4 +1,22 @@
-toConnectLocalFolder() {
+gify(payload, null, 2));
+                await writable.close();
+                sharedProofreadRevision = payload.revision || payload.updatedAt || '';
+                if (remoteChanged) {
+                    const ignoredRanges = buildIgnoredRanges(text);
+                    const restored = mergedComments
+                        .filter(comment => !comment.status || comment.status === 'open')
+                        .map((comment, index) => normalizeProofreadComment(comment, index, comment.source || 'shared', text, ignoredRanges))
+                        .filter(Boolean);
+                    setProofreadComments(restored, { skipSave: true });
+                    updateStatus('saved', '共有コメントをマージしました');
+                }
+            } catch (err) {
+                console.warn('Shared proofread comments save failed:', err);
+            }
+        }
+
+        // アプリ起動時の自動再接続の試み
+        async function tryAutoConnectLocalFolder() {
             if (!window.showDirectoryPicker) return; // 未サポート対応
             const savedHandle = await loadFolderHandleFromDB();
             if (savedHandle) {
