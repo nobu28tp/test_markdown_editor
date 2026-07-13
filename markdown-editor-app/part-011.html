@@ -1,4 +1,26 @@
-t css = event.target.result;
+
+
+        // 各テーマの切り替え
+        document.querySelectorAll('#doc-theme-menu .doc-theme-menu-item[data-theme]').forEach(item => {
+            item.addEventListener('click', () => {
+                const theme = item.getAttribute('data-theme');
+                applyDocTheme(theme);
+            });
+        });
+
+        // CSSファイルのロード
+        const btnLoadCssFile = document.getElementById('btn-load-css-file');
+        if (btnLoadCssFile) {
+            btnLoadCssFile.addEventListener('click', () => {
+                const fileInput = document.createElement('input');
+                fileInput.type = 'file';
+                fileInput.accept = '.css';
+                fileInput.onchange = e => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = event => {
+                        const css = event.target.result;
                         applyDocTheme('custom', css);
                         updateStatus('saved', `CSSファイルを読み込みました (${file.name})`);
                     };
@@ -507,21 +529,4 @@ t css = event.target.result;
                 let slideW = 1280, slideH = 720;
                 const firstSection = previewContainer.querySelector('.marp-slide-wrapper section');
                 if (firstSection) {
-                    const cs = getComputedStyle(firstSection);
-                    const cw = parseFloat(cs.width) || 1280;
-                    const ch = parseFloat(cs.height) || 720;
-                    if (Math.abs((cw / ch) - (4 / 3)) < 0.1) {
-                        layoutName = 'LAYOUT_4x3';
-                        slideW = 960; slideH = 720;
-                    }
-                }
-                pptx.layout = layoutName;
-
-                // ──────────────────────────────────────────────────
-                // Marp CSS を SVG コンテキスト不要に変換（キャプチャ用）
-                // Marp Core は svg > foreignObject > section というDOM構造を使い、
-                // CSS セレクタもこの構造に依存している。html2canvas は foreignObject
-                // 内のHTMLを正しくレンダリングできないため、section を SVG の外に
-                // 取り出して通常の HTML として再構築する。その際に CSS セレクタも
-                // SVG パスを省略した形に変換する必要がある。
-                // ────────────────────────────────────────────
+     
