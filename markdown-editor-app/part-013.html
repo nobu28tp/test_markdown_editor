@@ -1,4 +1,41 @@
-unction generateHtmlExportContent(options = {}) {
+                white-space: pre-wrap !important;
+            }
+
+            table {
+                display: table !important;
+                width: 100% !important;
+                overflow: visible !important;
+                table-layout: fixed !important;
+            }
+
+            thead {
+                display: table-header-group;
+            }
+
+            tr {
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
+
+            th, td {
+                word-break: break-word;
+                overflow-wrap: anywhere;
+            }
+
+            img, svg {
+                max-width: 100% !important;
+                height: auto !important;
+            }
+
+            a {
+                color: #0969da !important;
+                text-decoration: none !important;
+            }
+        }
+        `;
+
+        // HTML出力・プレビュー用の共通HTML生成関数
+        function generateHtmlExportContent(options = {}) {
             const title = (document.getElementById('doc-title-input').value || '').trim() || 'Document';
             const isSlideMode = previewContainer.classList.contains('marp-mode');
             const forPrintPdf = !!options.forPrintPdf;
@@ -637,23 +674,4 @@ ${slidesHtml}
                     }
                 }
 
-                if (!res.ok) {
-                    if (res.status === 404) {
-                        showGhStatus('❌ ファイルが見つかりませんでした (404)', '#f85149');
-                    } else if (res.status === 401) {
-                        showGhStatus('❌ 認証失敗。トークンを確認してください (401)', '#f85149');
-                    } else {
-                        showGhStatus(`❌ APIエラー: ${res.status} ${res.statusText}`, '#f85149');
-                    }
-                    return;
-                }
-                const text = await res.text();
-                editor.setValue(text);
-                currentDocumentLength = text.length;
-                updatePreview(text);
-                localStorage.setItem('lumina_autosave', text);
-                saveGitHubSettings();
-                showGhStatus('✅ GitHubから読み込みに成功しました', '#3fb950');
-                updateStatus('saved', 'GitHub読込完了');
-            } catch (err) {
-                con
+   
