@@ -156,9 +156,12 @@
             function insertSvgMarkup(markup, cm = editor) {
                 const cleanMarkup = sanitizeSvgMarkupForInsert(markup);
                 const doc = cm.getDoc();
+                const insertionLine = doc.getCursor().line + 1;
                 doc.replaceSelection(`\n${cleanMarkup}\n`);
                 cm.focus();
                 updateStatus('saved', 'SVGコードを挿入しました');
+                // SVGが本文の後方に入る場合でも、プレビューを挿入位置へ移動して表示を確認できるようにする。
+                setTimeout(() => scrollToLineInPreview(insertionLine, true), getPreviewDebounceMs() + 100);
             }
 
             // 2. Initialize CodeMirror Editor
@@ -563,8 +566,4 @@
                             overflow: visible !important;
                             display: flex !important;
                             flex-direction: column !important;
-                            align-items: center !important;
-                            gap: 1.5rem !important;
-                            background: transparent !important;
-                        }
-                        .marp-slide-
+           
