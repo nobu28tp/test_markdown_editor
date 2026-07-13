@@ -1,4 +1,6 @@
- } else {
+revLineText = doc.getLine(cursor.line - 1);
+                            doc.replaceRange('', { line: cursor.line - 1, ch: prevLineText.length }, { line: cursor.line, ch: doc.getLine(cursor.line).length });
+                        } else {
                             doc.replaceRange('', { line: cursor.line, ch: 0 }, { line: cursor.line + 1, ch: 0 });
                         }
                     } else {
@@ -139,13 +141,16 @@
         // レイアウトが壊れる。本文に直接書かれた SVG だけをレンダリング前に安全化する。
         function sanitizeInlineSvgMarkupForPreview(markdownText) {
             return (markdownText || '').replace(/<svg\b[\s\S]*?<\/svg\s*>/gi, (markup) => {
-                const parsed = new DOMParser().parseFromString(markup, 'image/svg+xml');
+                // SVGコメント内の未許可要素は、HTMLとしてのサニタイズ時に後続要素まで
+                // 巻き込んで除去される場合があるため、表示前にはコメントを残さない。
+                const markupWithoutComments = markup.replace(/<!--[\s\S]*?-->/g, '');
+                const parsed = new DOMParser().parseFromString(markupWithoutComments, 'image/svg+xml');
                 if (parsed.querySelector('parsererror') || parsed.documentElement?.localName !== 'svg') {
                     // 行番号の対応を保つため、拒否したSVGと同じ改行数だけを残す。
                     return markup.replace(/[^\n]/g, '');
                 }
 
-                const cleanMarkup = DOMPurify.sanitize(markup, getPreviewSvgSanitizeOptions())
+                const cleanMarkup = DOMPurify.sanitize(markupWithoutComments, getPreviewSvgSanitizeOptions())
                     .replace(/viewbox=/g, 'viewBox=');
                 const cleanDocument = new DOMParser().parseFromString(cleanMarkup, 'image/svg+xml');
                 if (cleanDocument.querySelector('parsererror') || cleanDocument.documentElement?.localName !== 'svg') {
@@ -501,17 +506,4 @@
             } else {
                 input.focus();
                 input.select();
-            }
-        }
-
-        function toggleReplaceRow(show) {
-            const replaceRow = document.getElementById('replace-row');
-            const toggleBtn = document.getElementById('search-toggle-replace');
-            if (!replaceRow) return;
-
-            if (show === undefined) {
-                show = replaceRow.style.display === 'none';
-            }
-            
-            if (show) {
-                replaceRow.style.display =
+   
