@@ -124,11 +124,17 @@ revLineText = doc.getLine(cursor.line - 1);
             'gradientUnits', 'gradientTransform', 'patternUnits'
         ];
 
+        const PREVIEW_SVG_ALLOWED_TAGS = [
+            'svg', 'defs', 'style', 'g', 'path', 'rect', 'circle', 'ellipse', 'line',
+            'polyline', 'polygon', 'text', 'tspan', 'title', 'desc', 'linearGradient',
+            'radialGradient', 'stop', 'clipPath', 'mask', 'pattern'
+        ];
+
         function getPreviewSvgSanitizeOptions(options = {}) {
             const allowForeignObject = options.allowForeignObject === true;
             return {
                 USE_PROFILES: { html: true, svg: true },
-                ADD_TAGS: options.addTags || [],
+                ADD_TAGS: [...PREVIEW_SVG_ALLOWED_TAGS, ...(options.addTags || [])],
                 ADD_ATTR: [...PREVIEW_SVG_ALLOWED_ATTRS, ...(options.addAttrs || [])],
                 FORBID_TAGS: allowForeignObject
                     ? ['script', 'image', 'use', 'animate', 'animateMotion', 'animateTransform', 'set', 'audio', 'video', 'iframe', 'object', 'embed']
@@ -496,14 +502,4 @@ revLineText = doc.getLine(cursor.line - 1);
             updateSearch(input.value);
 
             if (showReplace) {
-                const replaceInput = document.getElementById('replace-input');
-                if (input.value) {
-                    replaceInput.focus();
-                    replaceInput.select();
-                } else {
-                    input.focus();
-                }
-            } else {
-                input.focus();
-                input.select();
-   
+                const replaceInput = document.ge
