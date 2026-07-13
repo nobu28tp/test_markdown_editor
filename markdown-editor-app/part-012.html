@@ -1,4 +1,21 @@
-──────
+               const cs = getComputedStyle(firstSection);
+                    const cw = parseFloat(cs.width) || 1280;
+                    const ch = parseFloat(cs.height) || 720;
+                    if (Math.abs((cw / ch) - (4 / 3)) < 0.1) {
+                        layoutName = 'LAYOUT_4x3';
+                        slideW = 960; slideH = 720;
+                    }
+                }
+                pptx.layout = layoutName;
+
+                // ──────────────────────────────────────────────────
+                // Marp CSS を SVG コンテキスト不要に変換（キャプチャ用）
+                // Marp Core は svg > foreignObject > section というDOM構造を使い、
+                // CSS セレクタもこの構造に依存している。html2canvas は foreignObject
+                // 内のHTMLを正しくレンダリングできないため、section を SVG の外に
+                // 取り出して通常の HTML として再構築する。その際に CSS セレクタも
+                // SVG パスを省略した形に変換する必要がある。
+                // ──────────────────────────────────────────────────
                 const marpStyleContent = document.getElementById('marp-style').textContent;
                 let captureCss = marpStyleContent
                     // svg[data-marpit-svg] > foreignObject > section → .marp-slide-wrapper > section
@@ -578,41 +595,3 @@
             }
 
             code {
-                white-space: pre-wrap !important;
-            }
-
-            table {
-                display: table !important;
-                width: 100% !important;
-                overflow: visible !important;
-                table-layout: fixed !important;
-            }
-
-            thead {
-                display: table-header-group;
-            }
-
-            tr {
-                break-inside: avoid;
-                page-break-inside: avoid;
-            }
-
-            th, td {
-                word-break: break-word;
-                overflow-wrap: anywhere;
-            }
-
-            img, svg {
-                max-width: 100% !important;
-                height: auto !important;
-            }
-
-            a {
-                color: #0969da !important;
-                text-decoration: none !important;
-            }
-        }
-        `;
-
-        // HTML出力・プレビュー用の共通HTML生成関数
-        f
