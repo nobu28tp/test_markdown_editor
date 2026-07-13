@@ -1,4 +1,4 @@
-revLineText = doc.getLine(cursor.line - 1);
+vLineText = doc.getLine(cursor.line - 1);
                             doc.replaceRange('', { line: cursor.line - 1, ch: prevLineText.length }, { line: cursor.line, ch: doc.getLine(cursor.line).length });
                         } else {
                             doc.replaceRange('', { line: cursor.line, ch: 0 }, { line: cursor.line + 1, ch: 0 });
@@ -498,4 +498,4 @@ revLineText = doc.getLine(cursor.line - 1);
             const input = document.getElementById('search-input');
             const selected = editor.getSelection();
             if (selected && selected.indexOf('\n') === -1) {
-                input.value = selecte
+                input.value = selected;
