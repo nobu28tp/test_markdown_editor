@@ -1,4 +1,23 @@
-sole.error('GitHub load failed:', err);
+             if (!res.ok) {
+                    if (res.status === 404) {
+                        showGhStatus('❌ ファイルが見つかりませんでした (404)', '#f85149');
+                    } else if (res.status === 401) {
+                        showGhStatus('❌ 認証失敗。トークンを確認してください (401)', '#f85149');
+                    } else {
+                        showGhStatus(`❌ APIエラー: ${res.status} ${res.statusText}`, '#f85149');
+                    }
+                    return;
+                }
+                const text = await res.text();
+                editor.setValue(text);
+                currentDocumentLength = text.length;
+                updatePreview(text);
+                localStorage.setItem('lumina_autosave', text);
+                saveGitHubSettings();
+                showGhStatus('✅ GitHubから読み込みに成功しました', '#3fb950');
+                updateStatus('saved', 'GitHub読込完了');
+            } catch (err) {
+                console.error('GitHub load failed:', err);
                 showGhStatus('❌ 通信エラー: ' + err.message, '#f85149');
             }
         }
@@ -624,22 +643,4 @@ sole.error('GitHub load failed:', err);
                 if (!(await verifyLocalPermission(commentHandle, true))) return;
                 const payload = getProofreadCommentPayload(text, mergedComments);
                 const writable = await commentHandle.createWritable();
-                await writable.write(JSON.stringify(payload, null, 2));
-                await writable.close();
-                sharedProofreadRevision = payload.revision || payload.updatedAt || '';
-                if (remoteChanged) {
-                    const ignoredRanges = buildIgnoredRanges(text);
-                    const restored = mergedComments
-                        .filter(comment => !comment.status || comment.status === 'open')
-                        .map((comment, index) => normalizeProofreadComment(comment, index, comment.source || 'shared', text, ignoredRanges))
-                        .filter(Boolean);
-                    setProofreadComments(restored, { skipSave: true });
-                    updateStatus('saved', '共有コメントをマージしました');
-                }
-            } catch (err) {
-                console.warn('Shared proofread comments save failed:', err);
-            }
-        }
-
-        // アプリ起動時の自動再接続の試み
-        async function tryAu
+                await writable.write(JSON.strin
