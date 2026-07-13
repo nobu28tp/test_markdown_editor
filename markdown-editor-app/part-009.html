@@ -167,7 +167,9 @@ revLineText = doc.getLine(cursor.line - 1);
                 if (!svg.getAttribute('xmlns')) {
                     svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
                 }
-                return new XMLSerializer().serializeToString(svg);
+                // MarkdownのHTMLブロック解析はSVG内の空行でブロックを分断することがある。
+                // プレビュー用だけは1行のSVGに正規化し、図形と後続Markdownを同じSVGとして扱わせる。
+                return new XMLSerializer().serializeToString(svg).replace(/[\r\n]+/g, '');
             });
         }
 
@@ -496,10 +498,4 @@ revLineText = doc.getLine(cursor.line - 1);
             const input = document.getElementById('search-input');
             const selected = editor.getSelection();
             if (selected && selected.indexOf('\n') === -1) {
-                input.value = selected;
-            }
-            
-            updateSearch(input.value);
-
-            if (showReplace) {
-                const replaceInput = document.ge
+                input.value = selecte
