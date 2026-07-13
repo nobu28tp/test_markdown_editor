@@ -14,7 +14,7 @@
       );
       try {
         const responses = await Promise.all(paths.map(path => fetch(path)));
-        if (responses.some(response => !response.ok)) throw new Error('アプリ本体の読み込みに失敗しました。');
+        const failed = responses.find((response, index) => !response.ok ? paths[index] : null); if (failed) throw new Error('アプリ本体の読み込みに失敗しました: ' + failed.status + ' ' + failed.url);
         const html = (await Promise.all(responses.map(response => response.text()))).join('');
         document.open();
         document.write(html);
